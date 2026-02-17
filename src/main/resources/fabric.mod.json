@@ -2,7 +2,7 @@
 	"schemaVersion": 1,
 	"id": "stasischess",
 	"version": "${version}",
-	"name": "StasisChess",
+	"name": "stasischess",
 	"description": "This is an example description! Tell everyone what your mod is about!",
 	"authors": [
 		"Me!"
@@ -17,9 +17,6 @@
 	"entrypoints": {
 		"main": [
 			"nand.modid.StasisChess"
-		],
-		"client": [
-			"nand.modid.StasisChessClient"
 		]
 	},
 	"mixins": [
@@ -31,7 +28,7 @@
 	],
 	"depends": {
 		"fabricloader": ">=0.18.4",
-		"minecraft": "~1.21.11",
+		"minecraft": "~1.21.1",
 		"java": ">=21",
 		"fabric-api": "*"
 	}
