@@ -13,8 +13,11 @@ import net.minecraft.item.Items;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.minecraft.network.packet.s2c.play.PositionFlag;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RotationAxis;
+import net.minecraft.util.math.Vec3d;
 import org.joml.Vector3f;
 
 import java.util.*;
@@ -22,12 +25,23 @@ import java.util.*;
 public class MinecraftChessManager {
     private static final MinecraftChessManager INSTANCE = new MinecraftChessManager();
     
+    private static class MoveAnimation {
+        String gameId;
+        String pieceId;
+        double startX, startY, startZ;
+        double endX, endY, endZ;
+        int currentTick;
+        int maxTicks = 20; 
+        UUID playerUuid;
+    }
+
     private final ChessStackEngine engine;
     private String activeGameId;
     private BlockPos boardOrigin;
     
-    // Tracks pieceId -> List of Display Entity UUIDs (Block and Text)
-    private final Map<String, List<UUID>> pieceEntities = new HashMap<>();
+    // Tracks gameId -> pieceId -> List of Display Entity UUIDs (Block and Text)
+    private final Map<String, Map<String, List<UUID>>> pieceEntities = new HashMap<>();
+    private final Map<String, MoveAnimation> activeAnimations = new HashMap<>();
     private UUID statusEntity;
     
     private int[] selectedSquare = null;
@@ -42,10 +56,9 @@ public class MinecraftChessManager {
     }
 
     public void startNewGame(BlockPos origin, ServerPlayerEntity player) {
-        clearEntities(player.getServerWorld());
-        
         this.boardOrigin = origin;
         this.activeGameId = engine.createGame();
+        
         this.selectedSquare = null;
         this.selectedPocketIndex = -1;
         
@@ -53,11 +66,23 @@ public class MinecraftChessManager {
         syncAllPieces(player.getServerWorld());
     }
 
+    private void clearEntitiesByTag(MinecraftServer server, String tag) {
+        for (ServerWorld world : server.getWorlds()) {
+            for (Entity e : world.iterateEntities()) {
+                if (e.getCommandTags().contains(tag)) {
+                    e.discard();
+                }
+            }
+        }
+    }
+
     private void clearEntities(ServerWorld world) {
-        for (List<UUID> uuids : pieceEntities.values()) {
-            for (UUID uuid : uuids) {
-                Entity e = world.getEntity(uuid);
-                if (e != null) e.discard();
+        for (Map<String, List<UUID>> gamePieces : pieceEntities.values()) {
+            for (List<UUID> uuids : gamePieces.values()) {
+                for (UUID uuid : uuids) {
+                    Entity e = world.getEntity(uuid);
+                    if (e != null) e.discard();
+                }
             }
         }
         pieceEntities.clear();
@@ -81,15 +106,18 @@ public class MinecraftChessManager {
             updatePieceVisuals(world, p);
         }
         
-        Iterator<Map.Entry<String, List<UUID>>> it = pieceEntities.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<String, List<UUID>> entry = it.next();
-            if (!currentPieceIds.contains(entry.getKey())) {
-                for (UUID uuid : entry.getValue()) {
-                    Entity e = world.getEntity(uuid);
-                    if (e != null) e.discard();
+        Map<String, List<UUID>> gamePieces = pieceEntities.get(activeGameId);
+        if (gamePieces != null) {
+            Iterator<Map.Entry<String, List<UUID>>> it = gamePieces.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, List<UUID>> entry = it.next();
+                if (!currentPieceIds.contains(entry.getKey())) {
+                    for (UUID uuid : entry.getValue()) {
+                        Entity e = world.getEntity(uuid);
+                        if (e != null) e.discard();
+                    }
+                    it.remove();
                 }
-                it.remove();
             }
         }
     }
@@ -106,6 +134,8 @@ public class MinecraftChessManager {
             textDisplay = old;
         } else {
             textDisplay = new DisplayEntity.TextDisplayEntity(EntityType.TEXT_DISPLAY, world);
+            textDisplay.addCommandTag("sc_status");
+            textDisplay.addCommandTag("sc_game_" + activeGameId);
             world.spawnEntity(textDisplay);
             statusEntity = textDisplay.getUuid();
         }
@@ -124,7 +154,8 @@ public class MinecraftChessManager {
         double z = boardOrigin.getZ() + p.pos.y * 2 + 1.0;
         double y = boardOrigin.getY() + 1.0; // Top of the board block
 
-        List<UUID> uuids = pieceEntities.computeIfAbsent(p.id, k -> new ArrayList<>());
+        Map<String, List<UUID>> gamePieces = pieceEntities.computeIfAbsent(activeGameId, k -> new HashMap<>());
+        List<UUID> uuids = gamePieces.computeIfAbsent(p.id, k -> new ArrayList<>());
         DisplayEntity.BlockDisplayEntity blockDisplay = null;
         DisplayEntity.TextDisplayEntity textDisplay = null;
 
@@ -136,21 +167,28 @@ public class MinecraftChessManager {
 
         if (blockDisplay == null) {
             blockDisplay = new DisplayEntity.BlockDisplayEntity(EntityType.BLOCK_DISPLAY, world);
+            blockDisplay.addCommandTag("sc_game_" + activeGameId);
+            blockDisplay.addCommandTag("sc_piece_" + p.id);
             world.spawnEntity(blockDisplay);
             uuids.add(blockDisplay.getUuid());
         }
         if (textDisplay == null) {
             textDisplay = new DisplayEntity.TextDisplayEntity(EntityType.TEXT_DISPLAY, world);
+            textDisplay.addCommandTag("sc_game_" + activeGameId);
+            textDisplay.addCommandTag("sc_piece_" + p.id);
             world.spawnEntity(textDisplay);
             uuids.add(textDisplay.getUuid());
         }
 
-        // Update Block
-        blockDisplay.refreshPositionAndAngles(x - 0.5, y, z - 0.5, 0, 0);
-        blockDisplay.setBlockState(getPieceBlock(p));
+        // Update Position (Only if NOT animating)
+        if (!activeAnimations.containsKey(p.id)) {
+            blockDisplay.refreshPositionAndAngles(x - 0.5, y, z - 0.5, 0, 0);
+            textDisplay.refreshPositionAndAngles(x, y + 1.3, z, 0, 0);
+        }
 
-        // Update Text
-        textDisplay.refreshPositionAndAngles(x, y + 1.3, z, 0, 0);
+        // Update Visuals (Always)
+        blockDisplay.setBlockState(getPieceBlock(p));
+        
         String name = String.format("%s%s [%d]", p.owner == 0 ? "§f" : "§7", p.effectiveKind().name(), p.moveStack);
         if (p.stun > 0) name += " §c(STUN " + p.stun + ")";
         if (p.isRoyal) name = "§6★ " + name;
@@ -256,7 +294,31 @@ public class MinecraftChessManager {
                 player.sendMessage(Text.literal("§7Deselected"), false);
             } else {
                 try {
-                    engine.makeMove(activeGameId, selectedSquare[0], selectedSquare[1], boardX, boardY);
+                    Piece.PieceData piece = engine.getPieceAt(activeGameId, selectedSquare[0], selectedSquare[1]);
+                    if (piece != null) {
+                        double startX = boardOrigin.getX() + selectedSquare[0] * 2 + 1.0;
+                        double startZ = boardOrigin.getZ() + selectedSquare[1] * 2 + 1.0;
+                        double startY = boardOrigin.getY() + 1.0;
+
+                        engine.makeMove(activeGameId, selectedSquare[0], selectedSquare[1], boardX, boardY);
+                        
+                        double endX = boardOrigin.getX() + boardX * 2 + 1.0;
+                        double endZ = boardOrigin.getZ() + boardY * 2 + 1.0;
+                        double endY = boardOrigin.getY() + 1.0;
+
+                        MoveAnimation anim = new MoveAnimation();
+                        anim.gameId = activeGameId;
+                        anim.pieceId = piece.id;
+                        anim.startX = startX; anim.startY = startY; anim.startZ = startZ;
+                        anim.endX = endX; anim.endY = endY; anim.endZ = endZ;
+                        anim.currentTick = 0;
+                        
+                        if (player.getPos().distanceTo(new Vec3d(startX, startY, startZ)) < 5.0) {
+                            anim.playerUuid = player.getUuid();
+                        }
+                        activeAnimations.put(piece.id, anim);
+                        player.sendMessage(Text.literal("§7(Animating piece: " + piece.effectiveKind().name() + ")"), false);
+                    }
                     player.sendMessage(Text.literal("§aMoved"), false);
                 } catch (Exception e) {
                     player.sendMessage(Text.literal("§c" + e.getMessage()), false);
@@ -277,17 +339,71 @@ public class MinecraftChessManager {
         }
     }
 
+    public void tick(MinecraftServer server) {
+        if (activeAnimations.isEmpty()) return;
+
+        List<String> finished = new ArrayList<>();
+        for (MoveAnimation anim : activeAnimations.values()) {
+            anim.currentTick++;
+            double t = (double) anim.currentTick / 40.0; // 2 seconds, linear
+
+            double x = anim.startX + (anim.endX - anim.startX) * t;
+            double y = anim.startY + (anim.endY - anim.startY) * t;
+            double z = anim.startZ + (anim.endZ - anim.startZ) * t;
+
+            double hop = Math.sin(t * Math.PI) * 1.0;
+            double curY = y + hop;
+
+            ServerPlayerEntity rider = anim.playerUuid != null ? server.getPlayerManager().getPlayer(anim.playerUuid) : null;
+            if (rider != null) {
+                rider.teleport(rider.getServerWorld(), x, curY + 1.0, z, 
+                               EnumSet.of(PositionFlag.X_ROT, PositionFlag.Y_ROT), 
+                               0, 0);
+            }
+
+            Map<String, List<UUID>> gamePieces = pieceEntities.get(anim.gameId);
+            List<UUID> uuids = gamePieces != null ? gamePieces.get(anim.pieceId) : null;
+            if (uuids != null) {
+                for (ServerWorld world : server.getWorlds()) {
+                    boolean foundAny = false;
+                    for (UUID uuid : uuids) {
+                        Entity e = world.getEntity(uuid);
+                        if (e != null) {
+                            e.refreshPositionAndAngles(x - (e instanceof DisplayEntity.BlockDisplayEntity ? 0.5 : 0), 
+                                                     curY + (e instanceof DisplayEntity.TextDisplayEntity ? 1.3 : 0), 
+                                                     z - (e instanceof DisplayEntity.BlockDisplayEntity ? 0.5 : 0), 0, 0);
+                            foundAny = true;
+                        }
+                    }
+                    if (foundAny) break;
+                }
+            }
+
+            if (anim.currentTick >= 40) {
+                finished.add(anim.pieceId);
+            }
+        }
+
+        for (String id : finished) {
+            activeAnimations.remove(id);
+        }
+    }
+
     public void handleInteraction(BlockPos clickedPos, ServerPlayerEntity player) {
         if (selectedPocketIndex >= 0) handlePlaceInteraction(clickedPos, player);
         else handleMoveInteraction(clickedPos, player);
     }
     
     public void resetGame(ServerPlayerEntity player) {
-        clearEntities(player.getServerWorld());
+        if (activeGameId != null) {
+            clearEntitiesByTag(player.getServer(), "sc_game_" + activeGameId);
+            pieceEntities.remove(activeGameId);
+        }
         this.activeGameId = null;
         this.boardOrigin = null;
         this.selectedSquare = null;
         this.selectedPocketIndex = -1;
+        this.activeAnimations.clear();
         player.sendMessage(Text.literal("§cReset"), false);
     }
     

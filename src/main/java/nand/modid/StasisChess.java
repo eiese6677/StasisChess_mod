@@ -8,6 +8,8 @@ import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+
 public class StasisChess implements ModInitializer {
 	public static final String MOD_ID = "stasischess";
 		@Override
@@ -26,6 +28,10 @@ public class StasisChess implements ModInitializer {
 						})
 					)
 				);
+			});
+
+			ServerTickEvents.END_SERVER_TICK.register(server -> {
+				MinecraftChessManager.getInstance().tick(server);
 			});
 		}
 	}
