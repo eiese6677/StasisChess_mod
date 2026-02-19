@@ -173,22 +173,35 @@ public class MinecraftChessManager {
         };
     }
 
+    private Map<Piece.PieceKind, Integer> getGroupedPocket(int player) {
+        List<Piece.PieceSpec> pocket = engine.getPocket(activeGameId, player);
+        Map<Piece.PieceKind, Integer> counts = new LinkedHashMap<>();
+        for (Piece.PieceSpec spec : pocket) {
+            counts.put(spec.kind, counts.getOrDefault(spec.kind, 0) + 1);
+        }
+        return counts;
+    }
+
     public void cyclePocketSelection(ServerPlayerEntity player) {
         if (activeGameId == null) return;
         int currentPlayer = engine.getCurrentPlayer(activeGameId);
-        List<Piece.PieceSpec> pocket = engine.getPocket(activeGameId, currentPlayer);
-        if (pocket.isEmpty()) {
+        Map<Piece.PieceKind, Integer> counts = getGroupedPocket(currentPlayer);
+        List<Piece.PieceKind> uniqueKinds = new ArrayList<>(counts.keySet());
+
+        if (uniqueKinds.isEmpty()) {
             player.sendMessage(Text.literal("§cPocket is empty!"), false);
             selectedPocketIndex = -1;
             return;
         }
+
         selectedPocketIndex++;
-        if (selectedPocketIndex >= pocket.size()) {
+        if (selectedPocketIndex >= uniqueKinds.size()) {
             selectedPocketIndex = -1;
             player.sendMessage(Text.literal("§7Pocket Selection: None"), false);
         } else {
-            Piece.PieceSpec spec = pocket.get(selectedPocketIndex);
-            player.sendMessage(Text.literal("§ePocket Selection: §l" + spec.kind.name() + " §r(" + (selectedPocketIndex+1) + "/" + pocket.size() + ")"), false);
+            Piece.PieceKind kind = uniqueKinds.get(selectedPocketIndex);
+            int count = counts.get(kind);
+            player.sendMessage(Text.literal("§ePocket Selection: §l" + kind.name() + " §r(x" + count + ") (" + (selectedPocketIndex + 1) + "/" + uniqueKinds.size() + ")"), false);
         }
     }
 
@@ -204,12 +217,15 @@ public class MinecraftChessManager {
         int boardY = dz / 2;
 
         if (selectedPocketIndex >= 0) {
-            List<Piece.PieceSpec> pocket = engine.getPocket(activeGameId, engine.getCurrentPlayer(activeGameId));
-            if (selectedPocketIndex < pocket.size()) {
-                Piece.PieceSpec spec = pocket.get(selectedPocketIndex);
+            int currentPlayer = engine.getCurrentPlayer(activeGameId);
+            Map<Piece.PieceKind, Integer> counts = getGroupedPocket(currentPlayer);
+            List<Piece.PieceKind> uniqueKinds = new ArrayList<>(counts.keySet());
+
+            if (selectedPocketIndex < uniqueKinds.size()) {
+                Piece.PieceKind kind = uniqueKinds.get(selectedPocketIndex);
                 try {
-                    engine.placePiece(activeGameId, spec.kind.name(), boardX, boardY);
-                    player.sendMessage(Text.literal("§aPlaced " + spec.kind.name()), false);
+                    engine.placePiece(activeGameId, kind.name(), boardX, boardY);
+                    player.sendMessage(Text.literal("§aPlaced " + kind.name()), false);
                     selectedPocketIndex = -1; 
                 } catch (Exception e) {
                     player.sendMessage(Text.literal("§c" + e.getMessage()), false);
