@@ -585,23 +585,12 @@ public class MinecraftChessManager {
             clearEntitiesByTag(player.getServer(), "sc_game_" + activeGameId);
             pieceEntities.remove(activeGameId);
         }
-        // Always try to clear status display
-        clearEntitiesByTag(player.getServer(), "sc_status");
-        if (statusEntity != null) {
-            Entity e = player.getServerWorld().getEntity(statusEntity);
-            if (e != null) e.discard();
-            statusEntity = null;
-        }
-
-        // Restore blocks
-        restoreArea(player.getServerWorld());
-
         this.activeGameId = null;
         this.boardOrigin = null;
         this.selectedSquare = null;
         this.selectedPocketIndex = -1;
         this.activeAnimations.clear();
-        player.sendMessage(Text.literal("§cGame Reset and Entities Cleared"), false);
+        player.sendMessage(Text.literal("§cReset"), false);
     }
     
     public void endTurn(ServerPlayerEntity player) {
