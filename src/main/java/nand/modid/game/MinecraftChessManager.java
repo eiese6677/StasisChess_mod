@@ -638,6 +638,7 @@ public class MinecraftChessManager {
         this.activeAnimations.clear();
         player.sendMessage(Text.literal("§cGame Reset and Entities Cleared"), false);
     }
+
     
     public void endTurn(ServerPlayerEntity player) {
         if (activeGameId == null) return;
