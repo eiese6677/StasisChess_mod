@@ -20,15 +20,10 @@ public class drop_tool extends Item {
         if (!world.isClient) {
             ServerPlayerEntity player = (ServerPlayerEntity) context.getPlayer();
             BlockPos pos = context.getBlockPos();
-
-            if (player.isSneaking()) {
-                MinecraftChessManager.getInstance().endTurn(player);
-            } else {
-                // 포켓 영역 클릭 → 기물 선택
-                // 보드 영역 클릭 → 선택된 기물을 착수
-                if (!MinecraftChessManager.getInstance().handlePocketClick(pos, player)) {
-                    MinecraftChessManager.getInstance().handlePlaceInteraction(pos, player);
-                }
+            // 포켓 영역 클릭 → 기물 선택
+            // 보드 영역 클릭 → 선택된 기물을 착수
+            if (!MinecraftChessManager.getInstance().handlePocketClick(pos, player)) {
+                MinecraftChessManager.getInstance().handlePlaceInteraction(pos, player);
             }
         }
         return ActionResult.success(world.isClient);

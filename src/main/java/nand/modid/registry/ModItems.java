@@ -12,32 +12,39 @@ import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 public class ModItems {
 
     // 아이템 인스턴스 생성
-//    public static final Item DROP_TOOL = new drop_tool(new Item.Settings());
-//    public static final Item START_TOOL = new start_tool(new Item.Settings());
-//    public static final Item MOVE_TOOL = new move_tool(new Item.Settings());
+    public static final Item DROP_TOOL = new drop_tool(new Item.Settings());
+    public static final Item START_TOOL = new start_tool(new Item.Settings());
+    public static final Item MOVE_TOOL = new move_tool(new Item.Settings());
+    public static final Item TURN_TOOL = new turn_tool(new Item.Settings());
 
     public static void register() {
         Registry.register(
                 Registries.ITEM,
                 Identifier.of(StasisChess.MOD_ID, "drop_tool"),
-                new drop_tool(new Item.Settings())
+                DROP_TOOL
         );
         Registry.register(
                 Registries.ITEM,
                 Identifier.of(StasisChess.MOD_ID, "start_tool"),
-                new start_tool(new Item.Settings())
+                START_TOOL
         );
         Registry.register(
                 Registries.ITEM,
                 Identifier.of(StasisChess.MOD_ID, "move_tool"),
-                new move_tool(new Item.Settings())
+                MOVE_TOOL
+        );
+        Registry.register(
+                Registries.ITEM,
+                Identifier.of(StasisChess.MOD_ID, "turn_tool"),
+                TURN_TOOL
         );
 
         // 아이템 그룹에 추가
-//        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(content -> {
-//            content.add(new drop_tool(new Item.Settings()));
-//            content.add(new start_tool(new Item.Settings()));
-//            content.add(new move_tool(new Item.Settings()));
-//        });
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(content -> {
+            content.add(START_TOOL);
+            content.add(DROP_TOOL);
+            content.add(MOVE_TOOL);
+            content.add(TURN_TOOL);
+        });
     }
 }

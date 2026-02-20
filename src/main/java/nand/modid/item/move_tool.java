@@ -19,12 +19,7 @@ public class move_tool extends Item {
         if (!world.isClient) {
             ServerPlayerEntity player = (ServerPlayerEntity) context.getPlayer();
             BlockPos pos = context.getBlockPos();
-
-            if (player.isSneaking()) {
-                MinecraftChessManager.getInstance().endTurn(player);
-            } else {
-                MinecraftChessManager.getInstance().handleMoveInteraction(pos, player);
-            }
+            MinecraftChessManager.getInstance().handleMoveInteraction(pos, player);
         }
         return ActionResult.success(world.isClient);
     }

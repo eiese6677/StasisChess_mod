@@ -46,6 +46,9 @@ public class MinecraftChessManager {
     // 포켓 표시 엔티티: 플레이어(0=백, 1=흑) -> 디스플레이 엔티티 UUID 목록
     private final Map<Integer, List<UUID>> pocketEntities = new HashMap<>();
     
+    // 체스판 생성 전의 블록들을 저장
+    private final Map<BlockPos, BlockState> savedBlocks = new HashMap<>();
+    
     private int[] selectedSquare = null;
     private int selectedPocketIndex = -1;
 
@@ -383,9 +386,9 @@ public class MinecraftChessManager {
         selectedPocketIndex = slot;
         Piece.PieceKind kind = uniqueKinds.get(slot);
         int count = counts.get(kind);
-        player.sendMessage(Text.literal(
-            "§ePocket Selected: §l" + kind.name() + " §r(×" + count + ") ["
-            + (slot + 1) + "/" + uniqueKinds.size() + "] — 보드를 클릭해 착수"), false);
+//        player.sendMessage(Text.literal(
+//            "§ePocket Selected: §l" + kind.name() + " §r(×" + count + ") ["
+//            + (slot + 1) + "/" + uniqueKinds.size() + "] — 보드를 클릭해 착수"), false);
 
         // 포켓 디스플레이 갱신 (선택 표시)
         syncPocketDisplays(player.getServerWorld());
@@ -543,17 +546,62 @@ public class MinecraftChessManager {
         else handleMoveInteraction(clickedPos, player);
     }
     
+    public void saveArea(ServerWorld world, BlockPos origin, int minX, int maxX, int minY, int maxY, int minZ, int maxZ) {
+        // If there's an active game, reset it (and restore its blocks) before saving the new area
+        // This prevents the chess board itself from being saved as the 'original' state
+        // if the player creates a new board while one is already active.
+        // We use a temporary flag or check activeGameId.
+        // However, resetGame is called by startNewGame too.
+        
+        // Logical flow should be:
+        // 1. User clicks start_tool.
+        // 2. start_tool calls resetGame(player) -> restores old blocks.
+        // 3. start_tool calls saveArea(...) -> saves current (restored) blocks.
+        // 4. start_tool places new blocks.
+        // 5. start_tool calls startNewGame(...) -> which currently calls resetGame again.
+        
+        // Let's refine the sequence in start_tool and MinecraftChessManager.
+        savedBlocks.clear();
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    BlockPos pos = origin.add(x, y, z);
+                    savedBlocks.put(pos, world.getBlockState(pos));
+                }
+            }
+        }
+    }
+
+    public void restoreArea(ServerWorld world) {
+        if (savedBlocks.isEmpty()) return;
+        for (Map.Entry<BlockPos, BlockState> entry : savedBlocks.entrySet()) {
+            world.setBlockState(entry.getKey(), entry.getValue());
+        }
+        savedBlocks.clear();
+    }
+
     public void resetGame(ServerPlayerEntity player) {
         if (activeGameId != null) {
             clearEntitiesByTag(player.getServer(), "sc_game_" + activeGameId);
             pieceEntities.remove(activeGameId);
         }
+        // Always try to clear status display
+        clearEntitiesByTag(player.getServer(), "sc_status");
+        if (statusEntity != null) {
+            Entity e = player.getServerWorld().getEntity(statusEntity);
+            if (e != null) e.discard();
+            statusEntity = null;
+        }
+
+        // Restore blocks
+        restoreArea(player.getServerWorld());
+
         this.activeGameId = null;
         this.boardOrigin = null;
         this.selectedSquare = null;
         this.selectedPocketIndex = -1;
         this.activeAnimations.clear();
-        player.sendMessage(Text.literal("§cReset"), false);
+        player.sendMessage(Text.literal("§cGame Reset and Entities Cleared"), false);
     }
     
     public void endTurn(ServerPlayerEntity player) {
@@ -565,6 +613,30 @@ public class MinecraftChessManager {
             checkGameResult(player);
         } catch (Exception e) {
              player.sendMessage(Text.literal("§c" + e.getMessage()), false);
+        }
+    }
+
+    public void showTurnActions(ServerPlayerEntity player) {
+        if (activeGameId == null) {
+            player.sendMessage(Text.literal("§cNo active game."), false);
+            return;
+        }
+        List<Move.Action> actions = engine.getTurnActions(activeGameId);
+        if (actions.isEmpty()) {
+            player.sendMessage(Text.literal("§7No actions taken this turn."), false);
+            return;
+        }
+
+        player.sendMessage(Text.literal("§e§lActions this turn:"), false);
+        for (Move.Action action : actions) {
+            String msg = switch (action.type) {
+                case PLACE -> String.format("§7- Placed piece at %s", action.to);
+                case MOVE -> String.format("§7- Moved piece from %s to %s", action.from, action.to);
+                case CROWN -> String.format("§7- Crowned piece %s", action.pieceId);
+                case DISGUISE -> String.format("§7- Disguised piece %s as %s", action.pieceId, action.asKind);
+                case STUN -> String.format("§7- Stunned piece %s (Amount: %d)", action.pieceId, action.stunAmount);
+            };
+            player.sendMessage(Text.literal(msg), false);
         }
     }
 }

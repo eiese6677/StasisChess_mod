@@ -23,6 +23,7 @@ public final class GameState {
     private final Map<String, Integer> globalState = new HashMap<>();
     private String activePiece;   // 현재 턴에 이동 중인 기물 ID
     private boolean actionTaken;  // 이번 턴에 행동 여부
+    private final List<Move.Action> turnActions = new ArrayList<>();
     private boolean debugMode;
     private int nextPieceId;
 
@@ -189,6 +190,7 @@ public final class GameState {
         pieces.put(piece.id, piece);
         board.put(target, piece.id);
         actionTaken = true;
+        turnActions.add(Move.Action.place(piece.id, target));
 
         return piece.id;
     }
@@ -325,6 +327,7 @@ public final class GameState {
 
         activePiece = pieceId;
         applyActionTags(pieceId, mv.tags);
+        turnActions.add(Move.Action.move(pieceId, from, to));
 
         return capturedId;
     }
@@ -380,6 +383,7 @@ public final class GameState {
 
         p.isRoyal = true;
         actionTaken = true;
+        turnActions.add(Move.Action.crown(pieceId));
     }
 
     public void disguisePiece(int player, String pieceId, Piece.PieceKind asKind) {
@@ -394,6 +398,7 @@ public final class GameState {
         p.moveStack = RuleSet.initialMoveStack(asKind.score());
         p.disguise = asKind;
         actionTaken = true;
+        turnActions.add(Move.Action.disguise(pieceId, asKind.name()));
     }
 
     public void stunPiece(String pieceId, int amount) {
@@ -411,6 +416,7 @@ public final class GameState {
 
         p.stun += amount;
         actionTaken = true;
+        turnActions.add(Move.Action.stun(pieceId, amount));
     }
 
     // ── 프로모션 ──────────────────────────────────────
@@ -451,6 +457,7 @@ public final class GameState {
 
         activePiece = null;
         actionTaken = false;
+        turnActions.clear();
     }
 
     // ── 승리 조건 ─────────────────────────────────────
@@ -564,6 +571,7 @@ public final class GameState {
     public int getTurn()                { return turn; }
     public String getActivePiece()      { return activePiece; }
     public boolean isActionTaken()      { return actionTaken; }
+    public List<Move.Action> getTurnActions() { return Collections.unmodifiableList(turnActions); }
     public boolean isDebugMode()        { return debugMode; }
     public void setDebugMode(boolean d) { debugMode = d; }
 

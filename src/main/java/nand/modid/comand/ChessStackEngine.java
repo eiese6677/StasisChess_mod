@@ -114,6 +114,11 @@ public final class ChessStackEngine {
         return getGame(gameId).getTurn();
     }
 
+    /** 현재 턴에 수행된 액션 목록 */
+    public List<Move.Action> getTurnActions(String gameId) {
+        return getGame(gameId).getTurnActions();
+    }
+
     /** 특정 위치 기물 정보 */
     public Piece.PieceData getPieceAt(String gameId, int x, int y) {
         return getGame(gameId).getPieceAt(new Move.Square(x, y));
