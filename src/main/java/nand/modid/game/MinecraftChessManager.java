@@ -71,6 +71,17 @@ public class MinecraftChessManager {
         syncAllPieces(player.getServerWorld());
     }
 
+    public void startExperimentalGame(BlockPos origin, ServerPlayerEntity player) {
+        this.boardOrigin = origin;
+        this.activeGameId = engine.createGame();
+
+        this.selectedSquare = null;
+        this.selectedPocketIndex = -1;
+
+        player.sendMessage(Text.literal("§d§lExperimental Game Started!"), false);
+        syncAllPieces(player.getServerWorld());
+    }
+
     private void clearEntitiesByTag(MinecraftServer server, String tag) {
         for (ServerWorld world : server.getWorlds()) {
             for (Entity e : world.iterateEntities()) {
