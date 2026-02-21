@@ -38,7 +38,7 @@ public final class ChessStackEngine {
     public String createExperimentalGame() {
         String id = "game_" + nextGameId++;
         GameState state = GameState.newDefault();
-        state.setupExperimentalPocket();
+        state.setupExperimentalPosition();
         games.put(id, state);
         return id;
     }

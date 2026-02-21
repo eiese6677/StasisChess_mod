@@ -13,6 +13,7 @@ import net.minecraft.item.Items;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.network.packet.s2c.play.PositionFlag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.math.BlockPos;
@@ -50,6 +51,7 @@ public class MinecraftChessManager {
     private final Map<BlockPos, BlockState> savedBlocks = new HashMap<>();
     
     private int[] selectedSquare = null;
+    private List<Move.LegalMove> currentLegalMoves = new ArrayList<>();
     private int selectedPocketIndex = -1;
 
     private MinecraftChessManager() {
@@ -73,7 +75,7 @@ public class MinecraftChessManager {
 
     public void startExperimentalGame(BlockPos origin, ServerPlayerEntity player) {
         this.boardOrigin = origin;
-        this.activeGameId = engine.createGame();
+        this.activeGameId = engine.createExperimentalGame();
 
         this.selectedSquare = null;
         this.selectedPocketIndex = -1;
@@ -245,7 +247,18 @@ public class MinecraftChessManager {
             case PAWN -> (isWhite ? Blocks.WHITE_WOOL : Blocks.BLACK_WOOL).getDefaultState();
             case AMAZON -> Blocks.PURPUR_BLOCK.getDefaultState();
             case CANNON -> Blocks.TNT.getDefaultState();
-            default -> (isWhite ? Blocks.SNOW_BLOCK : Blocks.GRAY_CONCRETE).getDefaultState();
+            case GRASSHOPPER -> Blocks.SLIME_BLOCK.getDefaultState();
+            case KNIGHTRIDER -> Blocks.BLUE_ICE.getDefaultState();
+            case ARCHBISHOP -> Blocks.AMETHYST_BLOCK.getDefaultState();
+            case DABBABA -> Blocks.COPPER_BLOCK.getDefaultState();
+            case ALFIL -> Blocks.PRISMARINE.getDefaultState();
+            case FERZ -> Blocks.CHISELED_QUARTZ_BLOCK.getDefaultState();
+            case CENTAUR -> Blocks.MUD_BRICKS.getDefaultState();
+            case CAMEL -> Blocks.CUT_SANDSTONE.getDefaultState();
+            case TEMPEST_ROOK -> Blocks.SEA_LANTERN.getDefaultState();
+            case BOUNCING_BISHOP -> Blocks.HONEY_BLOCK.getDefaultState();
+            case EXPERIMENT -> Blocks.GILDED_BLACKSTONE.getDefaultState();
+            case CUSTOM -> Blocks.EMERALD_BLOCK.getDefaultState();
         };
     }
 
@@ -275,13 +288,15 @@ public class MinecraftChessManager {
             boolean isWhite = (player == 0);
             List<UUID> playerUuids = pocketEntities.computeIfAbsent(player, k -> new ArrayList<>());
 
-            // 제목 텍스트
+            // 제목 텍스트 (보드 중앙 X+8.0으로 정렬)
             DisplayEntity.TextDisplayEntity titleDisplay =
                 new DisplayEntity.TextDisplayEntity(EntityType.TEXT_DISPLAY, world);
             titleDisplay.addCommandTag("sc_pocket");
             titleDisplay.addCommandTag("sc_game_" + activeGameId);
+            // 제목 위치를 약간 더 뒤로 밀어서 기물과 겹치지 않게 함
+            double titleZ = pocketZ + (isWhite ? 1.5 : -1.5);
             titleDisplay.refreshPositionAndAngles(
-                boardOrigin.getX() - 2.0, y + 1.5, pocketZ, 0, 0);
+                boardOrigin.getX() + 8.0, y + 2.5, titleZ, 0, 0);
             titleDisplay.setText(Text.literal(titles[player]));
             titleDisplay.setBillboardMode(DisplayEntity.BillboardMode.CENTER);
             world.spawnEntity(titleDisplay);
@@ -296,7 +311,14 @@ public class MinecraftChessManager {
             for (Map.Entry<Piece.PieceKind, Integer> entry : counts.entrySet()) {
                 Piece.PieceKind kind = entry.getKey();
                 int count = entry.getValue();
-                double slotX = boardOrigin.getX() + slot * 2.0 + 1.0;
+
+                int col = slot % 6; // 한 줄에 6개씩
+                int row = slot / 6;
+                // 중앙 정렬 오프셋 1.75 ( (16 - (5*2.5)) / 2 )
+                double slotX = boardOrigin.getX() + col * 2.5 + 1.75; 
+                // 백(0)은 남쪽으로(-), 흑(1)은 북쪽으로(+) 줄을 늘림. 줄 간격 3.0
+                double rowZ = pocketZ + (isWhite ? -row * 3.0 : row * 3.0);
+
                 boolean isSelected = isCurrentPlayer && (slot == selectedPocketIndex);
 
                 // 블록 디스플레이
@@ -306,7 +328,7 @@ public class MinecraftChessManager {
                 blockDisplay.addCommandTag("sc_game_" + activeGameId);
                 // 선택된 슬롯은 살짝 위로 띄워 강조
                 double blockY = isSelected ? y + 0.3 : y;
-                blockDisplay.refreshPositionAndAngles(slotX - 0.5, blockY, pocketZ - 0.5, 0, 0);
+                blockDisplay.refreshPositionAndAngles(slotX - 0.5, blockY, rowZ - 0.5, 0, 0);
                 blockDisplay.setBlockState(getPieceBlockForKind(kind, isWhite));
                 world.spawnEntity(blockDisplay);
                 playerUuids.add(blockDisplay.getUuid());
@@ -316,7 +338,7 @@ public class MinecraftChessManager {
                     new DisplayEntity.TextDisplayEntity(EntityType.TEXT_DISPLAY, world);
                 countDisplay.addCommandTag("sc_pocket");
                 countDisplay.addCommandTag("sc_game_" + activeGameId);
-                countDisplay.refreshPositionAndAngles(slotX, blockY + 1.3, pocketZ, 0, 0);
+                countDisplay.refreshPositionAndAngles(slotX, blockY + 1.3, rowZ, 0, 0);
                 String color = isSelected ? "§6§l" : (isWhite ? "§f" : "§7");
                 String label = color + kind.name() + " ×" + count + (isSelected ? " §e◀" : "");
                 countDisplay.setText(Text.literal(label));
@@ -373,10 +395,12 @@ public class MinecraftChessManager {
         int dx = clickedPos.getX() - boardOrigin.getX();
         int dz = clickedPos.getZ() - boardOrigin.getZ();
 
-        // 포켓 영역 판별
-        boolean isWhitePocket = dz >= -3 && dz <= -1;
-        boolean isBlackPocket = dz >= 16 && dz <= 18;
+        // 포켓 영역 판별 (3줄 지원)
+        // 백 포켓: dz ∈ [-12, -1], 흑 포켓: dz ∈ [16, 28]
+        boolean isWhitePocket = dz >= -12 && dz <= -1;
+        boolean isBlackPocket = dz >= 16 && dz <= 28;
         if (!isWhitePocket && !isBlackPocket) return false;
+        // 가로 대칭 0~16블록 범위 (16블록 보드 너비와 동일하게 맞춤)
         if (dx < 0 || dx >= 16) return false;
 
         int clickedPlayer = isWhitePocket ? 0 : 1;
@@ -387,7 +411,21 @@ public class MinecraftChessManager {
             return true;
         }
 
-        int slot = dx / 2;
+        // col 계산: dx 1.75를 기준으로 2.5씩 간격 (dx - (1.75 - 1.25)) / 2.5
+        int col = (int)((dx - 0.5) / 2.5);
+        if (col < 0) col = 0;
+        if (col >= 6) col = 5;
+        
+        int row;
+        if (isWhitePocket) {
+            // Row 0: dz -2, Row 1: dz -5, Row 2: dz -8, Row 3: dz -11
+            row = (Math.abs(dz - (-2)) + 1) / 3;
+        } else {
+            // Row 0: dz 17, Row 1: dz 20, Row 2: dz 23, Row 3: dz 26
+            row = (Math.abs(dz - 17) + 1) / 3;
+        }
+
+        int slot = row * 6 + col;
         Map<Piece.PieceKind, Integer> counts = getGroupedPocket(currentPlayer);
         List<Piece.PieceKind> uniqueKinds = new ArrayList<>(counts.keySet());
 
@@ -406,10 +444,7 @@ public class MinecraftChessManager {
         selectedPocketIndex = slot;
         Piece.PieceKind kind = uniqueKinds.get(slot);
         int count = counts.get(kind);
-//        player.sendMessage(Text.literal(
-//            "§ePocket Selected: §l" + kind.name() + " §r(×" + count + ") ["
-//            + (slot + 1) + "/" + uniqueKinds.size() + "] — 보드를 클릭해 착수"), false);
-
+        
         // 포켓 디스플레이 갱신 (선택 표시)
         syncPocketDisplays(player.getServerWorld());
         return true;
@@ -458,11 +493,13 @@ public class MinecraftChessManager {
             Piece.PieceData piece = engine.getPieceAt(activeGameId, boardX, boardY);
             if (piece != null && piece.owner == engine.getCurrentPlayer(activeGameId)) {
                 selectedSquare = new int[]{boardX, boardY};
-                player.sendMessage(Text.literal("§eSelected §l" + piece.kind.name()), false);
+                currentLegalMoves = engine.getLegalMoves(activeGameId, boardX, boardY);
+                player.sendMessage(Text.literal("§eSelected §l" + piece.kind.name() + " §7(" + currentLegalMoves.size() + " moves)"), false);
             }
         } else {
             if (selectedSquare[0] == boardX && selectedSquare[1] == boardY) {
                 selectedSquare = null;
+                currentLegalMoves.clear();
                 player.sendMessage(Text.literal("§7Deselected"), false);
             } else {
                 try {
@@ -496,6 +533,7 @@ public class MinecraftChessManager {
                     player.sendMessage(Text.literal("§c" + e.getMessage()), false);
                 }
                 selectedSquare = null;
+                currentLegalMoves.clear();
             }
         }
         syncAllPieces(player.getServerWorld());
@@ -512,6 +550,22 @@ public class MinecraftChessManager {
     }
 
     public void tick(MinecraftServer server) {
+        // Show particles for legal moves if a piece is selected
+        if (selectedSquare != null && !currentLegalMoves.isEmpty() && boardOrigin != null) {
+            ServerWorld world = server.getOverworld(); // Defaulting to overworld for particles
+            // Find world if possible, or just use first world
+            for (ServerWorld w : server.getWorlds()) {
+                for (Move.LegalMove lm : currentLegalMoves) {
+                    double px = boardOrigin.getX() + lm.to.x * 2 + 1.0;
+                    double pz = boardOrigin.getZ() + lm.to.y * 2 + 1.0;
+                    double py = boardOrigin.getY() + 1.2;
+                    
+                    // Show a few particles at each legal move location
+                    w.spawnParticles(ParticleTypes.END_ROD, px, py, pz, 1, 0.1, 0.1, 0.1, 0.05);
+                }
+            }
+        }
+
         if (activeAnimations.isEmpty()) return;
 
         List<String> finished = new ArrayList<>();
@@ -639,6 +693,7 @@ public class MinecraftChessManager {
         this.activeGameId = null;
         this.boardOrigin = null;
         this.selectedSquare = null;
+        this.currentLegalMoves.clear();
         this.selectedPocketIndex = -1;
         
         player.sendMessage(Text.literal("§c[StasisChess] Game and Board Reset!"), false);

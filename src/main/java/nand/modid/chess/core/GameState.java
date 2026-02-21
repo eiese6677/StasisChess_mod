@@ -146,6 +146,47 @@ public final class GameState {
         setupPocketUnchecked(1, new ArrayList<>(pocket));
     }
 
+    /** 실험용 기물 배치 설정 (모든 기물을 포켓에 넣음) */
+    public void setupExperimentalPosition() {
+        // 보드는 킹만 남겨두고 (생성자에서 이미 배치됨) 모든 기물을 포켓에 구성합니다.
+        List<Piece.PieceSpec> megaPocket = new ArrayList<>(Arrays.asList(
+            // 기본 기물들
+            new Piece.PieceSpec(Piece.PieceKind.QUEEN),
+            new Piece.PieceSpec(Piece.PieceKind.ROOK),
+            new Piece.PieceSpec(Piece.PieceKind.ROOK),
+            new Piece.PieceSpec(Piece.PieceKind.BISHOP),
+            new Piece.PieceSpec(Piece.PieceKind.BISHOP),
+            new Piece.PieceSpec(Piece.PieceKind.KNIGHT),
+            new Piece.PieceSpec(Piece.PieceKind.KNIGHT),
+            new Piece.PieceSpec(Piece.PieceKind.PAWN),
+            new Piece.PieceSpec(Piece.PieceKind.PAWN),
+            new Piece.PieceSpec(Piece.PieceKind.PAWN),
+            new Piece.PieceSpec(Piece.PieceKind.PAWN),
+            new Piece.PieceSpec(Piece.PieceKind.PAWN),
+            new Piece.PieceSpec(Piece.PieceKind.PAWN),
+            new Piece.PieceSpec(Piece.PieceKind.PAWN),
+            new Piece.PieceSpec(Piece.PieceKind.PAWN),
+
+            // 변형 기물들
+            new Piece.PieceSpec(Piece.PieceKind.AMAZON),
+            new Piece.PieceSpec(Piece.PieceKind.GRASSHOPPER),
+            new Piece.PieceSpec(Piece.PieceKind.KNIGHTRIDER),
+            new Piece.PieceSpec(Piece.PieceKind.ARCHBISHOP),
+            new Piece.PieceSpec(Piece.PieceKind.DABBABA),
+            new Piece.PieceSpec(Piece.PieceKind.ALFIL),
+            new Piece.PieceSpec(Piece.PieceKind.FERZ),
+            new Piece.PieceSpec(Piece.PieceKind.CENTAUR),
+            new Piece.PieceSpec(Piece.PieceKind.CAMEL),
+            new Piece.PieceSpec(Piece.PieceKind.TEMPEST_ROOK),
+            new Piece.PieceSpec(Piece.PieceKind.CANNON),
+            new Piece.PieceSpec(Piece.PieceKind.BOUNCING_BISHOP),
+            new Piece.PieceSpec(Piece.PieceKind.EXPERIMENT)
+        ));
+
+        setupPocketUnchecked(0, new ArrayList<>(megaPocket));
+        setupPocketUnchecked(1, new ArrayList<>(megaPocket));
+    }
+
     // ── 착수 ──────────────────────────────────────────
 
     /** 착수 가능 여부 확인 */

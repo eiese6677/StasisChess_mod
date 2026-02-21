@@ -43,28 +43,27 @@ public class start_tool extends Item {
             // 1. Reset existing game (and restore blocks) before saving the new area
             MinecraftChessManager.getInstance().resetGame(player);
 
-            // 2. Save the area before modifying it
-            MinecraftChessManager.getInstance().saveArea((ServerWorld) world, basePos, -3, 18, -1, 1, -3, 18);
+            // 2. Save the area before modifying it (Symmetric platform for 16x16 board)
+            MinecraftChessManager.getInstance().saveArea((ServerWorld) world, basePos, -5, 20, -1, 1, -15, 30);
 
-            // 3. Create a 22x22 platform (from -3 to 18 in both x and z)
-            // The board will be 16x16 (8*2) from (0,0) to (15,15)
-            for (int x = -3; x <= 18; x++) {
-                for (int z = -3; z <= 18; z++) {
+            // 3. Create platform (X: -5 to 20, Z: -15 to 30) - Perfectly Symmetric
+            for (int x = -5; x <= 20; x++) {
+                for (int z = -15; z <= 30; z++) {
                     // Base platform (one block below)
                     world.setBlockState(basePos.add(x, -1, z), Blocks.POLISHED_ANDESITE.getDefaultState());
 
                     // Perimeter fences
-                    if (x == -3 || x == 18 || z == -3 || z == 18) {
+                    if (x == -5 || x == 20 || z == -15 || z == 30) {
                         world.setBlockState(basePos.add(x, 0, z), Blocks.DARK_OAK_FENCE.getDefaultState());
                     }
                 }
             }
 
             // 2. Corner Lanterns
-            world.setBlockState(basePos.add(-3, 1, -3), Blocks.LANTERN.getDefaultState());
-            world.setBlockState(basePos.add(18, 1, -3), Blocks.LANTERN.getDefaultState());
-            world.setBlockState(basePos.add(-3, 1, 18), Blocks.LANTERN.getDefaultState());
-            world.setBlockState(basePos.add(18, 1, 18), Blocks.LANTERN.getDefaultState());
+            world.setBlockState(basePos.add(-5, 1, -15), Blocks.LANTERN.getDefaultState());
+            world.setBlockState(basePos.add(20, 1, -15), Blocks.LANTERN.getDefaultState());
+            world.setBlockState(basePos.add(-5, 1, 30), Blocks.LANTERN.getDefaultState());
+            world.setBlockState(basePos.add(20, 1, 30), Blocks.LANTERN.getDefaultState());
 
             // 3. Create the 8x8 chess board (each square is 2x2, 0 to 15)
             for (int x = 0; x < 8; x++) {
