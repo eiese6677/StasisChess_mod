@@ -167,8 +167,17 @@ public class MinecraftChessManager {
         }
 
         textDisplay.refreshPositionAndAngles(x, y, z, 0, 0);
-        String turnText = activeGameId == null ? "§6§lGAME OVER" : 
-            (engine.getCurrentPlayer(activeGameId) == 0 ? "§f§lWhite's Turn" : "§7§lBlack's Turn");
+        String turnText;
+        if (activeGameId == null) {
+            turnText = "§6§lGAME OVER";
+        } else {
+            Move.GameResult result = engine.getGameResult(activeGameId);
+            if (result != Move.GameResult.ONGOING) {
+                turnText = "§6§lGAME OVER: " + result;
+            } else {
+                turnText = (engine.getCurrentPlayer(activeGameId) == 0 ? "§f§lWhite's Turn" : "§7§lBlack's Turn");
+            }
+        }
         textDisplay.setText(Text.literal(turnText));
         textDisplay.setBillboardMode(DisplayEntity.BillboardMode.CENTER);
     }
@@ -498,7 +507,7 @@ public class MinecraftChessManager {
         Move.GameResult result = engine.getGameResult(activeGameId);
         if (result != Move.GameResult.ONGOING) {
             player.sendMessage(Text.literal("§6§lGAME OVER: " + result), false);
-            activeGameId = null;
+            // We keep activeGameId so resetGame() can still clean up entities.
         }
     }
 
@@ -592,16 +601,47 @@ public class MinecraftChessManager {
     }
 
     public void resetGame(ServerPlayerEntity player) {
-        if (activeGameId != null) {
-            clearEntitiesByTag(player.getServer(), "sc_game_" + activeGameId);
-            pieceEntities.remove(activeGameId);
+        if (player == null) return;
+
+        player.sendMessage(Text.literal("§c[StasisChess] 보드 삭제 및 초기화 중..."), false);
+        
+        ServerWorld world = player.getServerWorld();
+        var server = player.getServer();
+
+        // 1. Clear all chess-related entities in one pass across all worlds
+        if (server != null) {
+            for (ServerWorld w : server.getWorlds()) {
+                for (Entity e : w.iterateEntities()) {
+                    Set<String> tags = e.getCommandTags();
+                    if (!tags.isEmpty()) {
+                        for (String tag : tags) {
+                            if (tag.startsWith("sc_game_") || tag.startsWith("sc_piece_") || 
+                                tag.startsWith("sc_pocket") || tag.startsWith("sc_status")) {
+                                e.discard();
+                                break; // Found a matching tag, move to next entity
+                            }
+                        }
+                    }
+                }
+            }
         }
+        
+        // 2. Explicitly clear all internal entity tracking maps
+        pieceEntities.clear();
+        pocketEntities.clear();
+        statusEntity = null;
+        activeAnimations.clear();
+        
+        // 3. Restore blocks
+        restoreArea(world);
+
+        // 4. Reset state variables
         this.activeGameId = null;
         this.boardOrigin = null;
         this.selectedSquare = null;
         this.selectedPocketIndex = -1;
-        this.activeAnimations.clear();
-        player.sendMessage(Text.literal("§cReset"), false);
+        
+        player.sendMessage(Text.literal("§c[StasisChess] Game and Board Reset!"), false);
     }
     
     public void endTurn(ServerPlayerEntity player) {

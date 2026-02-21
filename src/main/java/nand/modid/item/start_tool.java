@@ -83,7 +83,7 @@ public class start_tool extends Item {
 
             if (context.getPlayer() != null) {
                 context.getPlayer().sendMessage(Text.literal("Chess board and platform created with 2x2 squares!"), false);
-                nand.modid.game.MinecraftChessManager.getInstance().startNewGame(basePos, (net.minecraft.server.network.ServerPlayerEntity) context.getPlayer());
+                MinecraftChessManager.getInstance().startNewGame(basePos, (ServerPlayerEntity) context.getPlayer());
             }
         }
         return ActionResult.success(world.isClient);
