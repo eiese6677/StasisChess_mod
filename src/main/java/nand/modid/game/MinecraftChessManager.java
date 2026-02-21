@@ -13,6 +13,9 @@ import net.minecraft.item.Items;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.minecraft.network.PacketByteBuf;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.network.packet.s2c.play.PositionFlag;
 import net.minecraft.server.MinecraftServer;
@@ -20,6 +23,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Vector3f;
+import nand.modid.StasisChess;
 
 import java.util.*;
 
@@ -31,6 +35,7 @@ public class MinecraftChessManager {
         String pieceId;
         double startX, startY, startZ;
         double endX, endY, endZ;
+        float yaw;
         int currentTick;
         int maxTicks = 20; 
         UUID playerUuid;
@@ -520,9 +525,16 @@ public class MinecraftChessManager {
                         anim.pieceId = piece.id;
                         anim.startX = startX; anim.startY = startY; anim.startZ = startZ;
                         anim.endX = endX; anim.endY = endY; anim.endZ = endZ;
+                        
+                        // Calculate yaw (horizontal rotation) to face the destination
+                        double adx = endX - startX;
+                        double adz = endZ - startZ;
+                        anim.yaw = (float) Math.toDegrees(Math.atan2(-adx, adz));
+                        
                         anim.currentTick = 0;
                         
-                        if (player.getPos().distanceTo(new Vec3d(startX, startY, startZ)) < 5.0) {
+                        // Increase detection range to 20 blocks so player is almost always picked up
+                        if (player.getPos().distanceTo(new Vec3d(startX, startY, startZ)) < 20.0) {
                             anim.playerUuid = player.getUuid();
                         }
                         activeAnimations.put(piece.id, anim);
@@ -571,7 +583,7 @@ public class MinecraftChessManager {
         List<String> finished = new ArrayList<>();
         for (MoveAnimation anim : activeAnimations.values()) {
             anim.currentTick++;
-            double t = (double) anim.currentTick / 40.0; // 2 seconds, linear
+            double t = (double) anim.currentTick / 20.0; // 1 second (20 ticks), linear
 
             double x = anim.startX + (anim.endX - anim.startX) * t;
             double y = anim.startY + (anim.endY - anim.startY) * t;
@@ -582,9 +594,19 @@ public class MinecraftChessManager {
 
             ServerPlayerEntity rider = anim.playerUuid != null ? server.getPlayerManager().getPlayer(anim.playerUuid) : null;
             if (rider != null) {
-                rider.teleport(rider.getServerWorld(), x, curY + 1.0, z, 
-                               EnumSet.of(PositionFlag.X_ROT, PositionFlag.Y_ROT), 
-                               0, 0);
+                // First tick: Set to 3rd person view
+                if (anim.currentTick == 1) {
+                    ServerPlayNetworking.send(rider, new StasisChess.PerspectivePacketPayload(1)); // 3rd Person Back
+                }
+
+                // Teleport rider slightly above the piece to simulate riding
+                // Face the movement direction (anim.yaw) and look down slightly (25 pitch)
+                rider.teleport(rider.getServerWorld(), x, curY + 1.2, z, 
+                               Collections.emptySet(), 
+                               anim.yaw, 25.0f);
+                
+                // Keep the rider looking forward/down at the board or in the movement direction
+                // (Already handled by keeping X_ROT/Y_ROT flags)
             }
 
             Map<String, List<UUID>> gamePieces = pieceEntities.get(anim.gameId);
@@ -605,8 +627,12 @@ public class MinecraftChessManager {
                 }
             }
 
-            if (anim.currentTick >= 40) {
+            if (anim.currentTick >= 20) {
                 finished.add(anim.pieceId);
+                // End of animation: Restore 1st person view
+                if (rider != null) {
+                    ServerPlayNetworking.send(rider, new StasisChess.PerspectivePacketPayload(0)); // 1st Person
+                }
             }
         }
 
