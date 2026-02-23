@@ -187,6 +187,25 @@ public final class GameState {
         setupPocketUnchecked(1, new ArrayList<>(megaPocket));
     }
 
+    /** 포켓에 기물 추가 */
+    public void addPieceToPocket(int player, Piece.PieceKind kind) {
+        List<Piece.PieceSpec> pocket = pockets.computeIfAbsent(player, k -> new ArrayList<>());
+        pocket.add(new Piece.PieceSpec(kind));
+    }
+
+    /** 포켓에서 기물 제거 */
+    public boolean removePieceFromPocket(int player, Piece.PieceKind kind) {
+        List<Piece.PieceSpec> pocket = pockets.get(player);
+        if (pocket == null) return false;
+        for (int i = 0; i < pocket.size(); i++) {
+            if (pocket.get(i).kind == kind) {
+                pocket.remove(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ── 착수 ──────────────────────────────────────────
 
     /** 착수 가능 여부 확인 */

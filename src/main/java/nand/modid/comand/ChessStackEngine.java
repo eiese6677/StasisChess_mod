@@ -29,7 +29,7 @@ public final class ChessStackEngine {
     public String createGame() {
         String id = "game_" + nextGameId++;
         GameState state = GameState.newDefault();
-        state.setupInitialPosition();
+        // state.setupInitialPosition(); // 포켓 초기화 제거
         games.put(id, state);
         return id;
     }
@@ -38,7 +38,7 @@ public final class ChessStackEngine {
     public String createExperimentalGame() {
         String id = "game_" + nextGameId++;
         GameState state = GameState.newDefault();
-        state.setupExperimentalPosition();
+        // state.setupExperimentalPosition(); // 포켓 초기화 제거
         games.put(id, state);
         return id;
     }
@@ -95,6 +95,16 @@ public final class ChessStackEngine {
         GameState state = getGame(gameId);
         Piece.PieceKind kind = Piece.PieceKind.fromString(kindName);
         return state.placePiece(state.getTurn(), kind, new Move.Square(x, y));
+    }
+
+    /** 포켓에 기물 추가 */
+    public void addPieceToPocket(String gameId, int player, Piece.PieceKind kind) {
+        getGame(gameId).addPieceToPocket(player, kind);
+    }
+
+    /** 포켓에서 기물 제거 */
+    public boolean removePieceFromPocket(String gameId, int player, Piece.PieceKind kind) {
+        return getGame(gameId).removePieceFromPocket(player, kind);
     }
 
     /** 턴 종료 */

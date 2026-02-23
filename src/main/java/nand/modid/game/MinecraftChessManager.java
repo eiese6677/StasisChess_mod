@@ -24,6 +24,7 @@ import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Vector3f;
 import nand.modid.StasisChess;
+import nand.modid.registry.ModItems;
 
 import java.util.*;
 
@@ -75,6 +76,7 @@ public class MinecraftChessManager {
         this.selectedPocketIndex = -1;
         
         player.sendMessage(Text.literal("§aNew Game Started!"), false);
+        givePieceItems(player);
         syncAllPieces(player.getServerWorld());
     }
 
@@ -86,7 +88,48 @@ public class MinecraftChessManager {
         this.selectedPocketIndex = -1;
 
         player.sendMessage(Text.literal("§d§lExperimental Game Started!"), false);
+        givePieceItems(player);
         syncAllPieces(player.getServerWorld());
+    }
+
+    private void givePieceItems(ServerPlayerEntity player) {
+        // 지급할 기본 도구 목록
+        List<net.minecraft.item.Item> tools = Arrays.asList(
+            ModItems.DROP_TOOL,
+            ModItems.MOVE_TOOL,
+            ModItems.TURN_TOOL
+        );
+
+        // 도구 지급 (중복 체크)
+        for (net.minecraft.item.Item tool : tools) {
+            if (!hasItem(player, tool)) {
+                ItemStack stack = new ItemStack(tool);
+                if (!player.getInventory().insertStack(stack)) {
+                    player.dropItem(stack, false);
+                }
+            }
+        }
+
+        // 모든 기물 지급 (중복 체크)
+        for (Piece.PieceKind kind : Piece.PieceKind.values()) {
+            net.minecraft.item.Item pieceItem = ModItems.getPieceItem(kind);
+            if (!hasItem(player, pieceItem)) {
+                ItemStack stack = new ItemStack(pieceItem);
+                if (!player.getInventory().insertStack(stack)) {
+                    player.dropItem(stack, false);
+                }
+            }
+        }
+        player.sendMessage(Text.literal("§7[StasisChess] 필요한 도구와 기물 아이템을 지급했습니다."), false);
+    }
+
+    private boolean hasItem(ServerPlayerEntity player, net.minecraft.item.Item item) {
+        for (int i = 0; i < player.getInventory().size(); i++) {
+            if (player.getInventory().getStack(i).isOf(item)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void clearEntitiesByTag(MinecraftServer server, String tag) {
@@ -453,6 +496,37 @@ public class MinecraftChessManager {
         // 포켓 디스플레이 갱신 (선택 표시)
         syncPocketDisplays(player.getServerWorld());
         return true;
+    }
+
+    public void addPieceToPocket(ServerPlayerEntity player, Piece.PieceKind kind) {
+        if (activeGameId == null || boardOrigin == null) {
+            player.sendMessage(Text.literal("§cNo active game."), false);
+            return;
+        }
+        // 플레이어의 Z 좌표를 보드 중심(Origin+8.0)과 비교하여 색상 결정
+        boolean isWhite = player.getZ() < (double) boardOrigin.getZ() + 8.0;
+        int playerSide = isWhite ? 0 : 1;
+
+        engine.addPieceToPocket(activeGameId, playerSide, kind);
+        syncPocketDisplays(player.getServerWorld());
+        player.sendMessage(Text.literal("§aAdded " + kind.name() + " to " + (isWhite ? "White" : "Black") + " pocket."), false);
+    }
+
+    public void removePieceFromPocket(ServerPlayerEntity player, Piece.PieceKind kind) {
+        if (activeGameId == null || boardOrigin == null) {
+            player.sendMessage(Text.literal("§cNo active game."), false);
+            return;
+        }
+        // 플레이어의 Z 좌표를 보드 중심(Origin+8.0)과 비교하여 색상 결정
+        boolean isWhite = player.getZ() < (double) boardOrigin.getZ() + 8.0;
+        int playerSide = isWhite ? 0 : 1;
+
+        if (engine.removePieceFromPocket(activeGameId, playerSide, kind)) {
+            syncPocketDisplays(player.getServerWorld());
+            player.sendMessage(Text.literal("§eRemoved " + kind.name() + " from " + (isWhite ? "White" : "Black") + " pocket."), false);
+        } else {
+            player.sendMessage(Text.literal("§c" + kind.name() + " not found in " + (isWhite ? "White" : "Black") + " pocket."), false);
+        }
     }
 
     public void handlePlaceInteraction(BlockPos clickedPos, ServerPlayerEntity player) {
