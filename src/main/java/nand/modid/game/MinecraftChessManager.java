@@ -514,10 +514,16 @@ public class MinecraftChessManager {
                         double startZ = boardOrigin.getZ() + selectedSquare[1] * 2 + 1.0;
                         double startY = boardOrigin.getY() + 1.0;
 
+                        // CATCH 여부를 이동 실행 전에 미리 확인
+                        Move.Square toSq = new Move.Square(boardX, boardY);
+                        boolean isCatch = currentLegalMoves.stream()
+                            .anyMatch(lm -> lm.to.equals(toSq) && lm.moveType == nand.modid.chess.dsl.chessembly.AST.MoveType.CATCH);
+
                         engine.makeMove(activeGameId, selectedSquare[0], selectedSquare[1], boardX, boardY);
-                        
-                        double endX = boardOrigin.getX() + boardX * 2 + 1.0;
-                        double endZ = boardOrigin.getZ() + boardY * 2 + 1.0;
+
+                        // CATCH는 기물이 제자리에 머무므로 애니메이션 종착지 = 출발지
+                        double endX = isCatch ? startX : boardOrigin.getX() + boardX * 2 + 1.0;
+                        double endZ = isCatch ? startZ : boardOrigin.getZ() + boardY * 2 + 1.0;
                         double endY = boardOrigin.getY() + 1.0;
 
                         MoveAnimation anim = new MoveAnimation();
