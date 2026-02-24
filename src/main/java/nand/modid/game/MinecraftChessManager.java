@@ -408,6 +408,16 @@ public class MinecraftChessManager {
         return counts;
     }
 
+    private int getPocketScore(int player) {
+        if (activeGameId == null) return 0;
+        List<Piece.PieceSpec> pocket = engine.getPocket(activeGameId, player);
+        int totalScore = 0;
+        for (Piece.PieceSpec spec : pocket) {
+            totalScore += spec.score();
+        }
+        return totalScore;
+    }
+
     public void cyclePocketSelection(ServerPlayerEntity player) {
         if (activeGameId == null) return;
         int currentPlayer = engine.getCurrentPlayer(activeGameId);
@@ -444,9 +454,9 @@ public class MinecraftChessManager {
         int dz = clickedPos.getZ() - boardOrigin.getZ();
 
         // 포켓 영역 판별 (3줄 지원)
-        // 백 포켓: dz ∈ [-12, -1], 흑 포켓: dz ∈ [16, 28]
-        boolean isWhitePocket = dz >= -12 && dz <= -1;
-        boolean isBlackPocket = dz >= 16 && dz <= 28;
+        // 백 포켓: dz ∈ [-10, -1], 흑 포켓: dz ∈ [16, 25]
+        boolean isWhitePocket = dz >= -10 && dz <= -1;
+        boolean isBlackPocket = dz >= 16 && dz <= 25;
         if (!isWhitePocket && !isBlackPocket) return false;
         // 가로 대칭 0~16블록 범위 (16블록 보드 너비와 동일하게 맞춤)
         if (dx < 0 || dx >= 16) return false;
@@ -503,13 +513,19 @@ public class MinecraftChessManager {
             player.sendMessage(Text.literal("§cNo active game."), false);
             return;
         }
-        // 플레이어의 Z 좌표를 보드 중심(Origin+8.0)과 비교하여 색상 결정
-        boolean isWhite = player.getZ() < (double) boardOrigin.getZ() + 8.0;
+        boolean isWhite = player.getZ() < (double) boardOrigin.getZ() + 7.5;
         int playerSide = isWhite ? 0 : 1;
+
+        final int MAX_POCKET_SCORE = 39;
+        int currentScore = getPocketScore(playerSide);
+        if (currentScore + kind.score() > MAX_POCKET_SCORE) {
+            player.sendMessage(Text.literal("§cCannot add " + kind.name() + ". Total pocket score would exceed " + MAX_POCKET_SCORE + " (Current: " + currentScore + ", Adding: " + kind.score() + ")."), false);
+            return;
+        }
 
         engine.addPieceToPocket(activeGameId, playerSide, kind);
         syncPocketDisplays(player.getServerWorld());
-        player.sendMessage(Text.literal("§aAdded " + kind.name() + " to " + (isWhite ? "White" : "Black") + " pocket."), false);
+        player.sendMessage(Text.literal("§aAdded " + kind.name() + " to " + (isWhite ? "White" : "Black") + " pocket. Current score: " + (currentScore + kind.score())), false);
     }
 
     public void removePieceFromPocket(ServerPlayerEntity player, Piece.PieceKind kind) {
@@ -518,7 +534,7 @@ public class MinecraftChessManager {
             return;
         }
         // 플레이어의 Z 좌표를 보드 중심(Origin+8.0)과 비교하여 색상 결정
-        boolean isWhite = player.getZ() < (double) boardOrigin.getZ() + 8.0;
+        boolean isWhite = player.getZ() < (double) boardOrigin.getZ() + 7.5;
         int playerSide = isWhite ? 0 : 1;
 
         if (engine.removePieceFromPocket(activeGameId, playerSide, kind)) {

@@ -2,7 +2,9 @@
 	"required": true,
 	"package": "nand.modid.mixin.client",
 	"compatibilityLevel": "JAVA_21",
-	"client": [],
+	"client": [
+		"ResourcePackManagerMixin"
+	],
 	"injectors": {
 		"defaultRequire": 1
 	}

@@ -31,13 +31,23 @@ public class StasisChess implements ModInitializer {
 		public Id<? extends CustomPayload> getId() { return ID; }
 	}
 
+	public record ReloadPacketPayload() implements CustomPayload {
+		public static final Id<ReloadPacketPayload> ID = new Id<>(Identifier.of(MOD_ID, "reload_assets"));
+		public static final PacketCodec<RegistryByteBuf, ReloadPacketPayload> CODEC = PacketCodec.unit(new ReloadPacketPayload());
+
+		@Override
+		public Id<? extends CustomPayload> getId() { return ID; }
+	}
+
 	@Override
 	public void onInitialize() {
 		ModItems.register();
+		nand.modid.game.ChessemblyFileLoader.loadAll();
 
-		// Register the payload type
+		// Register the payload types
 		PayloadTypeRegistry.playS2C().register(PerspectivePacketPayload.ID, PerspectivePacketPayload.CODEC);
 		PayloadTypeRegistry.playC2S().register(PerspectivePacketPayload.ID, PerspectivePacketPayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(ReloadPacketPayload.ID, ReloadPacketPayload.CODEC);
 
 			CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
 				dispatcher.register(CommandManager.literal("chess")
@@ -47,6 +57,19 @@ public class StasisChess implements ModInitializer {
 							if (player != null) {
 								MinecraftChessManager.getInstance().resetGame(player);
 							}
+							return 1;
+						})
+					)
+					.then(CommandManager.literal("reload")
+						.executes(context -> {
+							nand.modid.game.ChessemblyFileLoader.loadAll();
+							// 모든 플레이어에게 텍스처 리로드 신호 전송
+							if (context.getSource().getServer() != null) {
+								for (ServerPlayerEntity player : context.getSource().getServer().getPlayerManager().getPlayerList()) {
+									net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player, new ReloadPacketPayload());
+								}
+							}
+							context.getSource().sendMessage(Text.literal("§a[StasisChess] External scripts and textures reloaded!"));
 							return 1;
 						})
 					)
