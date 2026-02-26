@@ -262,4 +262,3 @@ src/main/java/com/chesstack/
 
 ---
 
-**즐거운 Chesstack 개발 되세요! 🎉**
