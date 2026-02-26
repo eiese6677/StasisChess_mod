@@ -28,9 +28,9 @@ public final class Piece {
         FERZ("ferz", 1),
         CENTAUR("centaur", 5),
         CAMEL("camel", 3),
-        TEMPEST_ROOK("tempestrook", 7),
+        TEMPEST_ROOK("tempest_rook", 7),
         CANNON("cannon", 5),
-        BOUNCING_BISHOP("bouncingbishop", 7),
+        BOUNCING_BISHOP("bouncing_bishop", 7),
         EXPERIMENT("experiment", 1),
         CUSTOM("custom", 3);
 
@@ -204,9 +204,9 @@ public final class Piece {
                 case "ferz": return FERZ;
                 case "centaur": return CENTAUR;
                 case "camel": return CAMEL;
-                case "tempestrook": return TEMPEST_ROOK;
+                case "tempest_rook": return TEMPEST_ROOK;
                 case "cannon": return CANNON;
-                case "bouncingbishop": return BOUNCING_BISHOP;
+                case "bouncing_bishop": return BOUNCING_BISHOP;
                 case "experiment": return EXPERIMENT;
                 default: return CUSTOM;
             }
