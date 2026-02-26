@@ -1,6 +1,7 @@
 package nand.modid.chess.dsl.chessembly;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * Interpreter — Chessembly 토큰 리스트를 실행하여 Activation 목록을 생성한다.
@@ -16,11 +17,23 @@ public final class Interpreter {
 
     private List<AST.Token> tokens = new ArrayList<>();
     private boolean debug;
+    /** 디버그 로그 수신자. null이면 System.out 사용 */
+    private Consumer<String> logger = null;
 
     public Interpreter() {}
 
     public void setDebug(boolean enabled) {
         this.debug = enabled;
+    }
+
+    /** 디버그 로그를 받을 콜백 설정. null 설정 시 System.out으로 폴백. */
+    public void setLogger(Consumer<String> logger) {
+        this.logger = logger;
+    }
+
+    private void log(String msg) {
+        if (logger != null) logger.accept(msg);
+        else System.out.println(msg);
     }
 
     /** 스크립트 파싱 (토큰화) */
@@ -75,8 +88,8 @@ public final class Interpreter {
             AST.Token token = tokens.get(pc);
 
             if (debug) {
-                System.out.printf("  [PC:%d] %s | Anchor(%d,%d) | last=%b%n",
-                        pc, token, anchorX, anchorY, lastValue);
+                log(String.format("  [PC:%d] %s | Anchor(%d,%d) | last=%b",
+                        pc - 1, token, anchorX, anchorY, lastValue));
             }
 
             pc++;
@@ -513,7 +526,7 @@ public final class Interpreter {
                                int dx, int dy, AST.MoveType moveType,
                                List<AST.ActionTag> tags, int[] catchTo) {
         if (debug) {
-            System.out.printf("    → Activation(%d, %d) %s%n", dx, dy, moveType);
+            log(String.format("    → Activation(%d, %d) %s", dx, dy, moveType));
         }
         list.add(new AST.Activation(dx, dy, moveType, tags, catchTo));
     }

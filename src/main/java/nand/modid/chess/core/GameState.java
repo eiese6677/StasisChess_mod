@@ -25,6 +25,7 @@ public final class GameState {
     private boolean actionTaken;  // 이번 턴에 행동 여부
     private final List<Move.Action> turnActions = new ArrayList<>();
     private boolean debugMode;
+    private java.util.function.Consumer<String> debugLogger = null;
     private int nextPieceId;
 
     // ── 생성자 ────────────────────────────────────────
@@ -634,6 +635,8 @@ public final class GameState {
     public List<Move.Action> getTurnActions() { return Collections.unmodifiableList(turnActions); }
     public boolean isDebugMode()        { return debugMode; }
     public void setDebugMode(boolean d) { debugMode = d; }
+    public java.util.function.Consumer<String> getDebugLogger() { return debugLogger; }
+    public void setDebugLogger(java.util.function.Consumer<String> logger) { this.debugLogger = logger; }
 
     public Piece.PieceData getPieceAt(Move.Square sq) {
         String id = board.get(sq);

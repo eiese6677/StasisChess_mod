@@ -73,6 +73,24 @@ public class StasisChess implements ModInitializer {
 							return 1;
 						})
 					)
+					.then(CommandManager.literal("debug")
+						.executes(context -> {
+							ServerPlayerEntity player = context.getSource().getPlayer();
+							if (player != null) {
+								MinecraftChessManager.getInstance().showEngineState(player);
+							}
+							return 1;
+						})
+					)
+					.then(CommandManager.literal("debugmode")
+						.executes(context -> {
+							ServerPlayerEntity player = context.getSource().getPlayer();
+							if (player != null) {
+								MinecraftChessManager.getInstance().toggleDebugMode(player);
+							}
+							return 1;
+						})
+					)
 				);
 			});
 
