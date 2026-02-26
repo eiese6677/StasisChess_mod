@@ -19,9 +19,9 @@
   "item.stasischess.ferz": "Ferz",
   "item.stasischess.centaur": "Centaur",
   "item.stasischess.camel": "Camel",
-  "item.stasischess.tempestrook": "Tempest Rook",
+  "item.stasischess.tempest_rook": "Tempest Rook",
   "item.stasischess.cannon": "Cannon",
-  "item.stasischess.bouncingbishop": "Bouncing Bishop",
+  "item.stasischess.bouncing_bishop": "Bouncing Bishop",
   "item.stasischess.experiment": "Experiment Piece",
   "item.stasischess.custom": "Custom Piece"
 }

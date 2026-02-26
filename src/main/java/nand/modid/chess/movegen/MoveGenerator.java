@@ -40,6 +40,7 @@ public final class MoveGenerator {
         // 인터프리터 실행
         Interpreter interpreter = new Interpreter();
         interpreter.setDebug(state.isDebugMode());
+        interpreter.setLogger(state.getDebugLogger());
         interpreter.parse(script);
         List<AST.Activation> activations = interpreter.execute(board);
 
@@ -80,6 +81,7 @@ public final class MoveGenerator {
 
         Interpreter interpreter = new Interpreter();
         interpreter.setDebug(state.isDebugMode());
+        interpreter.setLogger(state.getDebugLogger());
         interpreter.parse(script);
         List<AST.Activation> activations = interpreter.execute(board);
 

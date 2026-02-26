@@ -1,6 +1,7 @@
 package nand.modid.game;
 
 import nand.modid.comand.ChessStackEngine;
+import nand.modid.chess.core.GameState;
 import nand.modid.chess.core.Piece;
 import nand.modid.chess.core.Move;
 import net.minecraft.block.BlockState;
@@ -855,6 +856,185 @@ public class MinecraftChessManager {
             };
             player.sendMessage(Text.literal(msg), false);
         }
+    }
+
+    /**
+     * /chess debugmode 명령어: Chessembly 인터프리터의 디버그 모드를 토글한다.
+     * 활성화 시 합법 수 계산마다 서버 콘솔에 실행 추적 로그가 출력된다.
+     */
+    public void toggleDebugMode(ServerPlayerEntity player) {
+        if (activeGameId == null) {
+            send(player, "§cNo active game.");
+            return;
+        }
+        GameState state = engine.getGame(activeGameId);
+        boolean next = !state.isDebugMode();
+        state.setDebugMode(next);
+        if (next) {
+            // 플레이어 UUID만 보관 → 서버 틱에서 안전하게 조회
+            java.util.UUID playerUuid = player.getUuid();
+            state.setDebugLogger(msg -> {
+                net.minecraft.server.MinecraftServer server = player.getServer();
+                if (server == null) return;
+                net.minecraft.server.network.ServerPlayerEntity target =
+                        server.getPlayerManager().getPlayer(playerUuid);
+                if (target != null) {
+                    target.sendMessage(Text.literal("§8[dbg] §7" + msg), false);
+                }
+            });
+            send(player, "§a[StasisChess] Chessembly debug mode §l§aON§r§a — 인게임 채팅으로 실행 추적이 출력됩니다.");
+        } else {
+            state.setDebugLogger(null);
+            send(player, "§c[StasisChess] Chessembly debug mode §l§cOFF§r§c.");
+        }
+    }
+
+    /**
+     * /chess debug 명령어: 현재 엔진 내부의 모든 값을 플레이어 채팅에 출력한다.
+     */
+    public void showEngineState(ServerPlayerEntity player) {
+        send(player, "§b§l========== ENGINE DEBUG STATE ==========");
+
+        if (activeGameId == null) {
+            send(player, "§c  No active game.");
+            send(player, "§b§l=========================================");
+            return;
+        }
+
+        nand.modid.chess.core.GameState state = engine.getGame(activeGameId);
+
+        // ── 기본 정보 ─────────────────────────────────────
+        send(player, "§e§lBasic Info");
+        send(player, String.format("§7  Game ID       : §f%s", activeGameId));
+        send(player, String.format("§7  Turn          : §f%s (%d)",
+                state.getTurn() == 0 ? "§fWhite" : "§7Black", state.getTurn()));
+        send(player, String.format("§7  Action Taken  : §f%b", state.isActionTaken()));
+        String ap = state.getActivePiece();
+        send(player, String.format("§7  Active Piece  : §f%s", ap != null ? ap : "none"));
+        send(player, String.format("§7  Game Result   : §f%s", engine.getGameResult(activeGameId)));
+        send(player, String.format("§7  Debug Mode    : §f%b", state.isDebugMode()));
+
+        // ── 보드 기물 ──────────────────────────────────────
+        send(player, "§e§lBoard Pieces (" + state.getBoardPieces().size() + ")");
+        List<Piece.PieceData> boardPieces = new ArrayList<>(state.getBoardPieces());
+        boardPieces.sort(Comparator.comparingInt((Piece.PieceData p) -> p.owner)
+                .thenComparing(p -> p.pos == null ? "" : p.pos.toNotation()));
+        for (Piece.PieceData p : boardPieces) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(p.owner == 0 ? "§f" : "§7");
+            if (p.isRoyal) sb.append("§6★ ");
+            sb.append(p.kind.name());
+            if (p.disguise != null) sb.append("§d(disguised as ").append(p.disguise.name()).append(")§r");
+            sb.append(" @§b").append(p.pos != null ? p.pos.toNotation() : "?");
+            sb.append("§7  ms=§a").append(p.moveStack);
+            if (p.stun > 0) sb.append(" §cSTUN=").append(p.stun);
+            if (p.isRoyal) sb.append(" §6ROYAL");
+            sb.append("  §8[").append(p.id).append("]");
+            send(player, "  " + sb);
+        }
+
+        // ── 보드 시각화 ────────────────────────────────────
+        send(player, "§e§lBoard (8x8)");
+        send(player, "§7  y\\x  a  b  c  d  e  f  g  h");
+        for (int y = 7; y >= 0; y--) {
+            StringBuilder row = new StringBuilder("§7  ").append(y + 1).append("  ");
+            for (int x = 0; x < 8; x++) {
+                Piece.PieceData p = state.getPieceAt(new Move.Square(x, y));
+                if (p == null) {
+                    row.append("§8. ");
+                } else {
+                    String abbr = abbrev(p.effectiveKind());
+                    row.append(p.owner == 0 ? "§f" : "§7").append(abbr).append(" ");
+                }
+            }
+            send(player, row.toString());
+        }
+
+        // ── 포켓 ──────────────────────────────────────────
+        for (int pl = 0; pl < 2; pl++) {
+            List<Piece.PieceSpec> pocket = state.getPocket(pl);
+            String title = pl == 0 ? "§fWhite Pocket" : "§7Black Pocket";
+            send(player, "§e§l" + title + " (" + pocket.size() + " pieces)");
+            if (pocket.isEmpty()) {
+                send(player, "  §8(empty)");
+            } else {
+                // 종류별 집계
+                Map<Piece.PieceKind, Integer> counts = new LinkedHashMap<>();
+                for (Piece.PieceSpec spec : pocket) {
+                    counts.merge(spec.kind, 1, Integer::sum);
+                }
+                StringBuilder sb = new StringBuilder("  ");
+                for (Map.Entry<Piece.PieceKind, Integer> e : counts.entrySet()) {
+                    sb.append(e.getKey().name()).append("×").append(e.getValue()).append("  ");
+                }
+                send(player, sb.toString());
+                // 총 점수
+                int total = pocket.stream().mapToInt(Piece.PieceSpec::score).sum();
+                send(player, String.format("  §7Total score: §a%d", total));
+            }
+        }
+
+        // ── 이번 턴 행동 ───────────────────────────────────
+        List<Move.Action> actions = state.getTurnActions();
+        send(player, "§e§lTurn Actions (" + actions.size() + ")");
+        if (actions.isEmpty()) {
+            send(player, "  §8(none)");
+        } else {
+            for (Move.Action a : actions) {
+                String msg = switch (a.type) {
+                    case PLACE    -> String.format("PLACE %s → %s", a.pieceId, a.to);
+                    case MOVE     -> String.format("MOVE  %s: %s → %s", a.pieceId, a.from, a.to);
+                    case CROWN    -> String.format("CROWN %s", a.pieceId);
+                    case DISGUISE -> String.format("DISGUISE %s as %s", a.pieceId, a.asKind);
+                    case STUN     -> String.format("STUN %s x%d", a.pieceId, a.stunAmount);
+                };
+                send(player, "  §7- " + msg);
+            }
+        }
+
+        // ── 전역 상태 ──────────────────────────────────────
+        Map<String, Integer> globalState = state.getGlobalState();
+        send(player, "§e§lGlobal State (" + globalState.size() + " entries)");
+        if (globalState.isEmpty()) {
+            send(player, "  §8(empty)");
+        } else {
+            for (Map.Entry<String, Integer> e : globalState.entrySet()) {
+                send(player, String.format("  §7%s = §f%d", e.getKey(), e.getValue()));
+            }
+        }
+
+        send(player, "§b§l=========================================");
+    }
+
+    /** 기물 종류의 2자리 약어 반환 */
+    private static String abbrev(Piece.PieceKind kind) {
+        return switch (kind) {
+            case PAWN           -> "P";
+            case KING           -> "K";
+            case QUEEN          -> "Q";
+            case ROOK           -> "R";
+            case BISHOP         -> "B";
+            case KNIGHT         -> "N";
+            case AMAZON         -> "A";
+            case GRASSHOPPER    -> "G";
+            case KNIGHTRIDER    -> "Nr";
+            case ARCHBISHOP     -> "Ar";
+            case DABBABA        -> "D";
+            case ALFIL          -> "Al";
+            case FERZ           -> "F";
+            case CENTAUR        -> "Ct";
+            case CAMEL          -> "Cm";
+            case TEMPEST_ROOK   -> "Tr";
+            case CANNON         -> "Cn";
+            case BOUNCING_BISHOP-> "Bb";
+            case EXPERIMENT     -> "Ex";
+            case CUSTOM         -> "Cu";
+        };
+    }
+
+    /** 플레이어에게 채팅 메시지 전송 헬퍼 */
+    private static void send(ServerPlayerEntity player, String msg) {
+        player.sendMessage(Text.literal(msg), false);
     }
 }
 
