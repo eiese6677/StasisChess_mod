@@ -242,58 +242,6 @@ public class MinecraftChessManager {
         textDisplay.setBillboardMode(DisplayEntity.BillboardMode.CENTER);
     }
 
-    // private void updatePieceVisuals(ServerWorld world, Piece.PieceData p) {
-    // if (p.pos == null) return;
-    //
-    // double x = boardOrigin.getX() + p.pos.x * 2 + 1.0;
-    // double z = boardOrigin.getZ() + p.pos.y * 2 + 1.0;
-    // double y = boardOrigin.getY() + 1.0; // Top of the board block
-    //
-    // Map<String, List<UUID>> gamePieces =
-    // pieceEntities.computeIfAbsent(activeGameId, k -> new HashMap<>());
-    // List<UUID> uuids = gamePieces.computeIfAbsent(p.id, k -> new ArrayList<>());
-    // DisplayEntity.BlockDisplayEntity blockDisplay = null;
-    // DisplayEntity.TextDisplayEntity textDisplay = null;
-    //
-    // for (UUID uuid : uuids) {
-    // Entity e = world.getEntity(uuid);
-    // if (e instanceof DisplayEntity.BlockDisplayEntity b) blockDisplay = b;
-    // else if (e instanceof DisplayEntity.TextDisplayEntity t) textDisplay = t;
-    // }
-    //
-    // if (blockDisplay == null) {
-    // blockDisplay = new DisplayEntity.BlockDisplayEntity(EntityType.BLOCK_DISPLAY,
-    // world);
-    // blockDisplay.addCommandTag("sc_game_" + activeGameId);
-    // blockDisplay.addCommandTag("sc_piece_" + p.id);
-    // world.spawnEntity(blockDisplay);
-    // uuids.add(blockDisplay.getUuid());
-    // }
-    // if (textDisplay == null) {
-    // textDisplay = new DisplayEntity.TextDisplayEntity(EntityType.TEXT_DISPLAY,
-    // world);
-    // textDisplay.addCommandTag("sc_game_" + activeGameId);
-    // textDisplay.addCommandTag("sc_piece_" + p.id);
-    // world.spawnEntity(textDisplay);
-    // uuids.add(textDisplay.getUuid());
-    // }
-    //
-    // // Update Position (Only if NOT animating)
-    // if (!activeAnimations.containsKey(p.id)) {
-    // blockDisplay.refreshPositionAndAngles(x - 0.5, y, z - 0.5, 0, 0);
-    // textDisplay.refreshPositionAndAngles(x, y + 1.3, z, 0, 0);
-    // }
-    //
-    // // Update Visuals (Always)
-    // blockDisplay.setBlockState(getPieceBlock(p));
-    //
-    // String name = String.format("%s%s [%d]", p.owner == 0 ? "§f" : "§7",
-    // p.effectiveKind().name(), p.moveStack);
-    // if (p.stun > 0) name += " §c(STUN " + p.stun + ")";
-    // if (p.isRoyal) name = "§6★ " + name;
-    // textDisplay.setText(Text.literal(name));
-    // textDisplay.setBillboardMode(DisplayEntity.BillboardMode.CENTER);
-    // }
     private void updatePieceVisuals(ServerWorld world, Piece.PieceData p) {
         if (p.pos == null)
             return;
@@ -343,14 +291,14 @@ public class MinecraftChessManager {
         if (!activeAnimations.containsKey(p.id)) {
             // 아이템 디스플레이는 블록과 피벗(중심점)이 다를 수 있어 x-0.5 대신 x를 쓸 수도 있습니다.
             itemDisplay.refreshPositionAndAngles(x, y + 0.5, z, 0, 0);
-            textDisplay.refreshPositionAndAngles(x, y + 1.8, z, 0, 0);
+            textDisplay.refreshPositionAndAngles(x, y + 2.7, z, 0, 0);
         }
 
         // 4. 시각적 업데이트: setBlockState 대신 이전에 만든 getPieceItemForKind 사용
         // p.owner가 0이면 White, 1이면 Black으로 가정
         itemDisplay.setItemStack(getPieceItemForKind(p.effectiveKind(), p.owner == 0));
 
-        // 텍스트 업데이트 (기존 로직 유지)
+        // 텍스트 업데이트
         String name = String.format("%s%s [%d]", p.owner == 0 ? "§f" : "§7", p.effectiveKind().name(), p.moveStack);
         if (p.stun > 0)
             name += " §c(STUN " + p.stun + ")";
@@ -364,37 +312,6 @@ public class MinecraftChessManager {
         return getPieceItemForKind(p.effectiveKind(), p.owner == 0);
     }
 
-    // private BlockState getPieceBlockForKind(Piece.PieceKind kind, boolean
-    // isWhite) {
-    // return switch (kind) {
-    // case KING -> (isWhite ? Blocks.GOLD_BLOCK :
-    // Blocks.NETHERITE_BLOCK).getDefaultState();
-    // case QUEEN -> (isWhite ? Blocks.DIAMOND_BLOCK :
-    // Blocks.CRYING_OBSIDIAN).getDefaultState();
-    // case ROOK -> (isWhite ? Blocks.IRON_BLOCK :
-    // Blocks.OBSIDIAN).getDefaultState();
-    // case BISHOP -> (isWhite ? Blocks.QUARTZ_BLOCK :
-    // Blocks.COAL_BLOCK).getDefaultState();
-    // case KNIGHT -> (isWhite ? Blocks.WHITE_TERRACOTTA :
-    // Blocks.BLACK_TERRACOTTA).getDefaultState();
-    // case PAWN -> (isWhite ? Blocks.WHITE_WOOL :
-    // Blocks.BLACK_WOOL).getDefaultState();
-    // case AMAZON -> Blocks.PURPUR_BLOCK.getDefaultState();
-    // case CANNON -> Blocks.TNT.getDefaultState();
-    // case GRASSHOPPER -> Blocks.SLIME_BLOCK.getDefaultState();
-    // case KNIGHTRIDER -> Blocks.BLUE_ICE.getDefaultState();
-    // case ARCHBISHOP -> Blocks.AMETHYST_BLOCK.getDefaultState();
-    // case DABBABA -> Blocks.COPPER_BLOCK.getDefaultState();
-    // case ALFIL -> Blocks.PRISMARINE.getDefaultState();
-    // case FERZ -> Blocks.CHISELED_QUARTZ_BLOCK.getDefaultState();
-    // case CENTAUR -> Blocks.MUD_BRICKS.getDefaultState();
-    // case CAMEL -> Blocks.CUT_SANDSTONE.getDefaultState();
-    // case TEMPEST_ROOK -> Blocks.SEA_LANTERN.getDefaultState();
-    // case BOUNCING_BISHOP -> Blocks.HONEY_BLOCK.getDefaultState();
-    // case EXPERIMENT -> Blocks.GILDED_BLACKSTONE.getDefaultState();
-    // case CUSTOM -> Blocks.EMERALD_BLOCK.getDefaultState();
-    // };
-    // }
     private ItemStack getPieceItemForKind(Piece.PieceKind kind, boolean isWhite) {
         ItemStack stack = new ItemStack(ModItems.PIECE_MODEL);
 
@@ -477,17 +394,6 @@ public class MinecraftChessManager {
 
                 boolean isSelected = isCurrentPlayer && (slot == selectedPocketIndex);
 
-                // // 블록 디스플레이
-                // DisplayEntity.BlockDisplayEntity blockDisplay =
-                // new DisplayEntity.BlockDisplayEntity(EntityType.BLOCK_DISPLAY, world);
-                // blockDisplay.addCommandTag("sc_pocket");
-                // blockDisplay.addCommandTag("sc_game_" + activeGameId);
-                // // 선택된 슬롯은 살짝 위로 띄워 강조
-                // double blockY = isSelected ? y + 0.3 : y;
-                // blockDisplay.refreshPositionAndAngles(slotX - 0.5, blockY, rowZ - 0.5, 0, 0);
-                // blockDisplay.setBlockState(getPieceBlockForKind(kind, isWhite));
-                // world.spawnEntity(blockDisplay);
-                // playerUuids.add(blockDisplay.getUuid());
                 // 아이템 디스플레이
                 DisplayEntity.ItemDisplayEntity itemDisplay = new DisplayEntity.ItemDisplayEntity(
                         EntityType.ITEM_DISPLAY, world);
@@ -509,7 +415,7 @@ public class MinecraftChessManager {
                         EntityType.TEXT_DISPLAY, world);
                 countDisplay.addCommandTag("sc_pocket");
                 countDisplay.addCommandTag("sc_game_" + activeGameId);
-                countDisplay.refreshPositionAndAngles(slotX, blockY + 1.3, rowZ, 0, 0);
+                countDisplay.refreshPositionAndAngles(slotX, blockY + 2.2, rowZ, 0, 0);
                 String color = isSelected ? "§6§l" : (isWhite ? "§f" : "§7");
                 String label = color + kind.name() + " ×" + count + (isSelected ? " §e◀" : "");
                 countDisplay.setText(Text.literal(label));
@@ -874,7 +780,7 @@ public class MinecraftChessManager {
                         Entity e = world.getEntity(uuid);
                         if (e != null) {
                             e.refreshPositionAndAngles(x - (e instanceof DisplayEntity.BlockDisplayEntity ? 0.5 : 0),
-                                    curY + (e instanceof DisplayEntity.TextDisplayEntity ? 1.3 : 0),
+                                    curY + (e instanceof DisplayEntity.TextDisplayEntity ? 2.7 : 0),
                                     z - (e instanceof DisplayEntity.BlockDisplayEntity ? 0.5 : 0), 0, 0);
                             foundAny = true;
                         }
