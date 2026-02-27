@@ -18,13 +18,15 @@ import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 public class ModItems {
 
     // 아이템 그룹 키 정의
-    public static final RegistryKey<net.minecraft.item.ItemGroup> STASIS_CHESS_GROUP_KEY = RegistryKey.of(RegistryKeys.ITEM_GROUP, Identifier.of(StasisChess.MOD_ID, "stasischess_group"));
+    public static final RegistryKey<net.minecraft.item.ItemGroup> STASIS_CHESS_GROUP_KEY = RegistryKey
+            .of(RegistryKeys.ITEM_GROUP, Identifier.of(StasisChess.MOD_ID, "stasischess_group"));
 
     // 아이템 인스턴스 생성
     public static final Item DROP_TOOL = new drop_tool(new Item.Settings());
     public static final Item START_TOOL = new start_tool(new Item.Settings());
     public static final Item MOVE_TOOL = new move_tool(new Item.Settings());
     public static final Item TURN_TOOL = new turn_tool(new Item.Settings());
+    public static final Item PIECE_MODEL = new Item(new Item.Settings());
 
     public static void register() {
         // 아이템 그룹 등록
@@ -36,28 +38,27 @@ public class ModItems {
         Registry.register(
                 Registries.ITEM,
                 Identifier.of(StasisChess.MOD_ID, "drop_tool"),
-                DROP_TOOL
-        );
+                DROP_TOOL);
         Registry.register(
                 Registries.ITEM,
                 Identifier.of(StasisChess.MOD_ID, "start_tool"),
-                START_TOOL
-        );
+                START_TOOL);
         Registry.register(
                 Registries.ITEM,
                 Identifier.of(StasisChess.MOD_ID, "move_tool"),
-                MOVE_TOOL
-        );
+                MOVE_TOOL);
         Registry.register(
                 Registries.ITEM,
                 Identifier.of(StasisChess.MOD_ID, "turn_tool"),
-                TURN_TOOL
-        );
+                TURN_TOOL);
         Registry.register(
                 Registries.ITEM,
                 Identifier.of(StasisChess.MOD_ID, "start_exp_tool"),
-                new start_exp_tool(new Item.Settings())
-        );
+                new start_exp_tool(new Item.Settings()));
+        Registry.register(
+                Registries.ITEM,
+                Identifier.of(StasisChess.MOD_ID, "piece_model"),
+                PIECE_MODEL);
 
         // 기물 아이템 등록
         for (Piece.PieceKind kind : Piece.PieceKind.values()) {
@@ -71,7 +72,7 @@ public class ModItems {
             content.add(DROP_TOOL);
             content.add(MOVE_TOOL);
             content.add(TURN_TOOL);
-            
+
             // 모든 기물 아이템 추가 (중복 없이)
             for (Piece.PieceKind kind : Piece.PieceKind.values()) {
                 content.add(getPieceItem(kind));
@@ -84,8 +85,7 @@ public class ModItems {
         Registry.register(
                 Registries.ITEM,
                 Identifier.of(StasisChess.MOD_ID, id),
-                new PieceItem(kind, new Item.Settings())
-        );
+                new PieceItem(kind, new Item.Settings()));
     }
 
     public static Item getPieceItem(Piece.PieceKind kind) {
