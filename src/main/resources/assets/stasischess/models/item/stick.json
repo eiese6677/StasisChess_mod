@@ -1,0 +1,20 @@
+{
+    "parent": "minecraft:item/handheld",
+    "textures": {
+        "layer0": "minecraft:item/stick"
+    },
+    "overrides": [
+        { "predicate": { "custom_model_data": 1 }, "model": "stasischess:item/chess_pawn_black" },
+        { "predicate": { "custom_model_data": 2 }, "model": "stasischess:item/chess_knight_black" },
+        { "predicate": { "custom_model_data": 3 }, "model": "stasischess:item/chess_rook_black" },
+        { "predicate": { "custom_model_data": 4 }, "model": "stasischess:item/chess_bishop_black" },
+        { "predicate": { "custom_model_data": 5 }, "model": "stasischess:item/chess_queen_black" },
+        { "predicate": { "custom_model_data": 6 }, "model": "stasischess:item/chess_king_black" },
+        { "predicate": { "custom_model_data": 7 }, "model": "stasischess:item/chess_pawn_white" },
+        { "predicate": { "custom_model_data": 8 }, "model": "stasischess:item/chess_knight_white" },
+        { "predicate": { "custom_model_data": 9 }, "model": "stasischess:item/chess_rook_white" },
+        { "predicate": { "custom_model_data": 10 }, "model": "stasischess:item/chess_bishop_white" },
+        { "predicate": { "custom_model_data": 11 }, "model": "stasischess:item/chess_queen_white" },
+        { "predicate": { "custom_model_data": 12 }, "model": "stasischess:item/chess_king_white" }
+    ]
+}

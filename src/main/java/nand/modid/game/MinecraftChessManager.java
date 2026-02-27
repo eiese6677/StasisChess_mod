@@ -6,6 +6,8 @@ import nand.modid.chess.core.Piece;
 import nand.modid.chess.core.Move;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.CustomModelDataComponent;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.decoration.DisplayEntity;
@@ -31,7 +33,7 @@ import java.util.*;
 
 public class MinecraftChessManager {
     private static final MinecraftChessManager INSTANCE = new MinecraftChessManager();
-    
+
     private static class MoveAnimation {
         String gameId;
         String pieceId;
@@ -46,7 +48,10 @@ public class MinecraftChessManager {
     private final ChessStackEngine engine;
     private String activeGameId;
     private BlockPos boardOrigin;
-    
+
+    // true -> 기물 조작, false -> 포켓 조작
+    private boolean paze = false;
+
     // Tracks gameId -> pieceId -> List of Display Entity UUIDs (Block and Text)
     private final Map<String, Map<String, List<UUID>>> pieceEntities = new HashMap<>();
     private final Map<String, MoveAnimation> activeAnimations = new HashMap<>();
@@ -233,31 +238,89 @@ public class MinecraftChessManager {
         textDisplay.setBillboardMode(DisplayEntity.BillboardMode.CENTER);
     }
 
+//    private void updatePieceVisuals(ServerWorld world, Piece.PieceData p) {
+//        if (p.pos == null) return;
+//
+//        double x = boardOrigin.getX() + p.pos.x * 2 + 1.0;
+//        double z = boardOrigin.getZ() + p.pos.y * 2 + 1.0;
+//        double y = boardOrigin.getY() + 1.0; // Top of the board block
+//
+//        Map<String, List<UUID>> gamePieces = pieceEntities.computeIfAbsent(activeGameId, k -> new HashMap<>());
+//        List<UUID> uuids = gamePieces.computeIfAbsent(p.id, k -> new ArrayList<>());
+//        DisplayEntity.BlockDisplayEntity blockDisplay = null;
+//        DisplayEntity.TextDisplayEntity textDisplay = null;
+//
+//        for (UUID uuid : uuids) {
+//            Entity e = world.getEntity(uuid);
+//            if (e instanceof DisplayEntity.BlockDisplayEntity b) blockDisplay = b;
+//            else if (e instanceof DisplayEntity.TextDisplayEntity t) textDisplay = t;
+//        }
+//
+//        if (blockDisplay == null) {
+//            blockDisplay = new DisplayEntity.BlockDisplayEntity(EntityType.BLOCK_DISPLAY, world);
+//            blockDisplay.addCommandTag("sc_game_" + activeGameId);
+//            blockDisplay.addCommandTag("sc_piece_" + p.id);
+//            world.spawnEntity(blockDisplay);
+//            uuids.add(blockDisplay.getUuid());
+//        }
+//        if (textDisplay == null) {
+//            textDisplay = new DisplayEntity.TextDisplayEntity(EntityType.TEXT_DISPLAY, world);
+//            textDisplay.addCommandTag("sc_game_" + activeGameId);
+//            textDisplay.addCommandTag("sc_piece_" + p.id);
+//            world.spawnEntity(textDisplay);
+//            uuids.add(textDisplay.getUuid());
+//        }
+//
+//        // Update Position (Only if NOT animating)
+//        if (!activeAnimations.containsKey(p.id)) {
+//            blockDisplay.refreshPositionAndAngles(x - 0.5, y, z - 0.5, 0, 0);
+//            textDisplay.refreshPositionAndAngles(x, y + 1.3, z, 0, 0);
+//        }
+//
+//        // Update Visuals (Always)
+//        blockDisplay.setBlockState(getPieceBlock(p));
+//
+//        String name = String.format("%s%s [%d]", p.owner == 0 ? "§f" : "§7", p.effectiveKind().name(), p.moveStack);
+//        if (p.stun > 0) name += " §c(STUN " + p.stun + ")";
+//        if (p.isRoyal) name = "§6★ " + name;
+//        textDisplay.setText(Text.literal(name));
+//        textDisplay.setBillboardMode(DisplayEntity.BillboardMode.CENTER);
+//    }
     private void updatePieceVisuals(ServerWorld world, Piece.PieceData p) {
         if (p.pos == null) return;
 
         double x = boardOrigin.getX() + p.pos.x * 2 + 1.0;
         double z = boardOrigin.getZ() + p.pos.y * 2 + 1.0;
-        double y = boardOrigin.getY() + 1.0; // Top of the board block
+        double y = boardOrigin.getY() + 1.0;
 
         Map<String, List<UUID>> gamePieces = pieceEntities.computeIfAbsent(activeGameId, k -> new HashMap<>());
         List<UUID> uuids = gamePieces.computeIfAbsent(p.id, k -> new ArrayList<>());
-        DisplayEntity.BlockDisplayEntity blockDisplay = null;
+
+        // 1. 타입을 BlockDisplayEntity에서 ItemDisplayEntity로 변경
+        DisplayEntity.ItemDisplayEntity itemDisplay = null;
         DisplayEntity.TextDisplayEntity textDisplay = null;
 
         for (UUID uuid : uuids) {
             Entity e = world.getEntity(uuid);
-            if (e instanceof DisplayEntity.BlockDisplayEntity b) blockDisplay = b;
+            if (e instanceof DisplayEntity.ItemDisplayEntity i) itemDisplay = i; // 수정
             else if (e instanceof DisplayEntity.TextDisplayEntity t) textDisplay = t;
         }
 
-        if (blockDisplay == null) {
-            blockDisplay = new DisplayEntity.BlockDisplayEntity(EntityType.BLOCK_DISPLAY, world);
-            blockDisplay.addCommandTag("sc_game_" + activeGameId);
-            blockDisplay.addCommandTag("sc_piece_" + p.id);
-            world.spawnEntity(blockDisplay);
-            uuids.add(blockDisplay.getUuid());
+        if (itemDisplay == null) {
+            // 2. 생성 시 EntityType.ITEM_DISPLAY 사용
+            itemDisplay = new DisplayEntity.ItemDisplayEntity(EntityType.ITEM_DISPLAY, world);
+            itemDisplay.addCommandTag("sc_game_" + activeGameId);
+            itemDisplay.addCommandTag("sc_piece_" + p.id);
+
+            // 3. 아이템 크기 및 변환 설정 (필요 시)
+            itemDisplay.setTransformation(new net.minecraft.util.math.AffineTransformation(
+                    null, null, new org.joml.Vector3f(1.5f, 1.5f, 1.5f), null
+            ));
+
+            world.spawnEntity(itemDisplay);
+            uuids.add(itemDisplay.getUuid());
         }
+
         if (textDisplay == null) {
             textDisplay = new DisplayEntity.TextDisplayEntity(EntityType.TEXT_DISPLAY, world);
             textDisplay.addCommandTag("sc_game_" + activeGameId);
@@ -266,15 +329,18 @@ public class MinecraftChessManager {
             uuids.add(textDisplay.getUuid());
         }
 
-        // Update Position (Only if NOT animating)
+        // 위치 업데이트
         if (!activeAnimations.containsKey(p.id)) {
-            blockDisplay.refreshPositionAndAngles(x - 0.5, y, z - 0.5, 0, 0);
-            textDisplay.refreshPositionAndAngles(x, y + 1.3, z, 0, 0);
+            // 아이템 디스플레이는 블록과 피벗(중심점)이 다를 수 있어 x-0.5 대신 x를 쓸 수도 있습니다.
+            itemDisplay.refreshPositionAndAngles(x, y + 0.5, z, 0, 0);
+            textDisplay.refreshPositionAndAngles(x, y + 1.8, z, 0, 0);
         }
 
-        // Update Visuals (Always)
-        blockDisplay.setBlockState(getPieceBlock(p));
-        
+        // 4. 시각적 업데이트: setBlockState 대신 이전에 만든 getPieceItemForKind 사용
+        // p.owner가 0이면 White, 1이면 Black으로 가정
+        itemDisplay.setItemStack(getPieceItemForKind(p.effectiveKind(), p.owner == 0));
+
+        // 텍스트 업데이트 (기존 로직 유지)
         String name = String.format("%s%s [%d]", p.owner == 0 ? "§f" : "§7", p.effectiveKind().name(), p.moveStack);
         if (p.stun > 0) name += " §c(STUN " + p.stun + ")";
         if (p.isRoyal) name = "§6★ " + name;
@@ -282,33 +348,53 @@ public class MinecraftChessManager {
         textDisplay.setBillboardMode(DisplayEntity.BillboardMode.CENTER);
     }
 
-    private BlockState getPieceBlock(Piece.PieceData p) {
-        return getPieceBlockForKind(p.effectiveKind(), p.owner == 0);
+    private ItemStack getPieceBlock(Piece.PieceData p) {
+        return getPieceItemForKind(p.effectiveKind(), p.owner == 0);
     }
 
-    private BlockState getPieceBlockForKind(Piece.PieceKind kind, boolean isWhite) {
-        return switch (kind) {
-            case KING -> (isWhite ? Blocks.GOLD_BLOCK : Blocks.NETHERITE_BLOCK).getDefaultState();
-            case QUEEN -> (isWhite ? Blocks.DIAMOND_BLOCK : Blocks.CRYING_OBSIDIAN).getDefaultState();
-            case ROOK -> (isWhite ? Blocks.IRON_BLOCK : Blocks.OBSIDIAN).getDefaultState();
-            case BISHOP -> (isWhite ? Blocks.QUARTZ_BLOCK : Blocks.COAL_BLOCK).getDefaultState();
-            case KNIGHT -> (isWhite ? Blocks.WHITE_TERRACOTTA : Blocks.BLACK_TERRACOTTA).getDefaultState();
-            case PAWN -> (isWhite ? Blocks.WHITE_WOOL : Blocks.BLACK_WOOL).getDefaultState();
-            case AMAZON -> Blocks.PURPUR_BLOCK.getDefaultState();
-            case CANNON -> Blocks.TNT.getDefaultState();
-            case GRASSHOPPER -> Blocks.SLIME_BLOCK.getDefaultState();
-            case KNIGHTRIDER -> Blocks.BLUE_ICE.getDefaultState();
-            case ARCHBISHOP -> Blocks.AMETHYST_BLOCK.getDefaultState();
-            case DABBABA -> Blocks.COPPER_BLOCK.getDefaultState();
-            case ALFIL -> Blocks.PRISMARINE.getDefaultState();
-            case FERZ -> Blocks.CHISELED_QUARTZ_BLOCK.getDefaultState();
-            case CENTAUR -> Blocks.MUD_BRICKS.getDefaultState();
-            case CAMEL -> Blocks.CUT_SANDSTONE.getDefaultState();
-            case TEMPEST_ROOK -> Blocks.SEA_LANTERN.getDefaultState();
-            case BOUNCING_BISHOP -> Blocks.HONEY_BLOCK.getDefaultState();
-            case EXPERIMENT -> Blocks.GILDED_BLACKSTONE.getDefaultState();
-            case CUSTOM -> Blocks.EMERALD_BLOCK.getDefaultState();
+//    private BlockState getPieceBlockForKind(Piece.PieceKind kind, boolean isWhite) {
+//        return switch (kind) {
+//            case KING -> (isWhite ? Blocks.GOLD_BLOCK : Blocks.NETHERITE_BLOCK).getDefaultState();
+//            case QUEEN -> (isWhite ? Blocks.DIAMOND_BLOCK : Blocks.CRYING_OBSIDIAN).getDefaultState();
+//            case ROOK -> (isWhite ? Blocks.IRON_BLOCK : Blocks.OBSIDIAN).getDefaultState();
+//            case BISHOP -> (isWhite ? Blocks.QUARTZ_BLOCK : Blocks.COAL_BLOCK).getDefaultState();
+//            case KNIGHT -> (isWhite ? Blocks.WHITE_TERRACOTTA : Blocks.BLACK_TERRACOTTA).getDefaultState();
+//            case PAWN -> (isWhite ? Blocks.WHITE_WOOL : Blocks.BLACK_WOOL).getDefaultState();
+//            case AMAZON -> Blocks.PURPUR_BLOCK.getDefaultState();
+//            case CANNON -> Blocks.TNT.getDefaultState();
+//            case GRASSHOPPER -> Blocks.SLIME_BLOCK.getDefaultState();
+//            case KNIGHTRIDER -> Blocks.BLUE_ICE.getDefaultState();
+//            case ARCHBISHOP -> Blocks.AMETHYST_BLOCK.getDefaultState();
+//            case DABBABA -> Blocks.COPPER_BLOCK.getDefaultState();
+//            case ALFIL -> Blocks.PRISMARINE.getDefaultState();
+//            case FERZ -> Blocks.CHISELED_QUARTZ_BLOCK.getDefaultState();
+//            case CENTAUR -> Blocks.MUD_BRICKS.getDefaultState();
+//            case CAMEL -> Blocks.CUT_SANDSTONE.getDefaultState();
+//            case TEMPEST_ROOK -> Blocks.SEA_LANTERN.getDefaultState();
+//            case BOUNCING_BISHOP -> Blocks.HONEY_BLOCK.getDefaultState();
+//            case EXPERIMENT -> Blocks.GILDED_BLACKSTONE.getDefaultState();
+//            case CUSTOM -> Blocks.EMERALD_BLOCK.getDefaultState();
+//        };
+//    }
+    private ItemStack getPieceItemForKind(Piece.PieceKind kind, boolean isWhite) {
+        ItemStack stack = new ItemStack(Items.STICK);
+
+        int modelData = switch (kind) {
+            case PAWN   -> isWhite ? 7  : 1;
+            case KNIGHT -> isWhite ? 8  : 2;
+            case ROOK   -> isWhite ? 9  : 3;
+            case BISHOP -> isWhite ? 10 : 4;
+            case QUEEN  -> isWhite ? 11 : 5;
+            case KING   -> isWhite ? 12 : 6;
+            default -> 0;
         };
+
+        if (modelData > 0) {
+            // NBT 대신 Data Component를 사용하여 Custom Model Data 설정
+            stack.set(DataComponentTypes.CUSTOM_MODEL_DATA, new CustomModelDataComponent(modelData));
+        }
+
+        return stack;
     }
 
     /**
@@ -370,17 +456,32 @@ public class MinecraftChessManager {
 
                 boolean isSelected = isCurrentPlayer && (slot == selectedPocketIndex);
 
-                // 블록 디스플레이
-                DisplayEntity.BlockDisplayEntity blockDisplay =
-                    new DisplayEntity.BlockDisplayEntity(EntityType.BLOCK_DISPLAY, world);
-                blockDisplay.addCommandTag("sc_pocket");
-                blockDisplay.addCommandTag("sc_game_" + activeGameId);
-                // 선택된 슬롯은 살짝 위로 띄워 강조
+//                // 블록 디스플레이
+//                DisplayEntity.BlockDisplayEntity blockDisplay =
+//                    new DisplayEntity.BlockDisplayEntity(EntityType.BLOCK_DISPLAY, world);
+//                blockDisplay.addCommandTag("sc_pocket");
+//                blockDisplay.addCommandTag("sc_game_" + activeGameId);
+//                // 선택된 슬롯은 살짝 위로 띄워 강조
+//                double blockY = isSelected ? y + 0.3 : y;
+//                blockDisplay.refreshPositionAndAngles(slotX - 0.5, blockY, rowZ - 0.5, 0, 0);
+//                blockDisplay.setBlockState(getPieceBlockForKind(kind, isWhite));
+//                world.spawnEntity(blockDisplay);
+//                playerUuids.add(blockDisplay.getUuid());
+                // 아이템 디스플레이
+                DisplayEntity.ItemDisplayEntity itemDisplay =
+                        new DisplayEntity.ItemDisplayEntity(EntityType.ITEM_DISPLAY, world);
+                itemDisplay.addCommandTag("sc_pocket");
+                itemDisplay.addCommandTag("sc_game_" + activeGameId);
+
+                // 커스텀 모델이 입혀진 막대기 ItemStack 설정
+                itemDisplay.setItemStack(getPieceItemForKind(kind, isWhite));
+
                 double blockY = isSelected ? y + 0.3 : y;
-                blockDisplay.refreshPositionAndAngles(slotX - 0.5, blockY, rowZ - 0.5, 0, 0);
-                blockDisplay.setBlockState(getPieceBlockForKind(kind, isWhite));
-                world.spawnEntity(blockDisplay);
-                playerUuids.add(blockDisplay.getUuid());
+                // 아이템 디스플레이는 중심점 기준이 블록과 다를 수 있으니 좌표 미세조정 필요
+                itemDisplay.refreshPositionAndAngles(slotX, blockY + 0.5, rowZ, 0, 0);
+
+                world.spawnEntity(itemDisplay);
+                playerUuids.add(itemDisplay.getUuid());
 
                 // 수량 텍스트 (선택 시 황금색 강조)
                 DisplayEntity.TextDisplayEntity countDisplay =
@@ -551,6 +652,10 @@ public class MinecraftChessManager {
             player.sendMessage(Text.literal("§cNo active game."), false);
             return;
         }
+        if (!paze) {
+            player.sendMessage(Text.literal("§cCan't drop."), false);
+            return;
+        }
         int dx = clickedPos.getX() - boardOrigin.getX();
         int dz = clickedPos.getZ() - boardOrigin.getZ();
         if (dx < 0 || dx >= 16 || dz < 0 || dz >= 16) return;
@@ -579,6 +684,10 @@ public class MinecraftChessManager {
 
     public void handleMoveInteraction(BlockPos clickedPos, ServerPlayerEntity player) {
         if (activeGameId == null || boardOrigin == null) return;
+        if (!paze) {
+            player.sendMessage(Text.literal("§cCan't move."), false);
+            return;
+        }
         int dx = clickedPos.getX() - boardOrigin.getX();
         int dz = clickedPos.getZ() - boardOrigin.getZ();
         if (dx < 0 || dx >= 16 || dz < 0 || dz >= 16) return;
@@ -821,11 +930,14 @@ public class MinecraftChessManager {
         
         player.sendMessage(Text.literal("§c[StasisChess] Game and Board Reset!"), false);
     }
-    
+
     public void endTurn(ServerPlayerEntity player) {
         if (activeGameId == null) return;
         try {
             engine.endTurn(activeGameId);
+            if (engine.getCurrentPlayer(activeGameId) == 1){
+                this.paze = true;
+            }
             player.sendMessage(Text.literal("Turn Ended"), false);
             syncAllPieces(player.getServerWorld());
             checkGameResult(player);
