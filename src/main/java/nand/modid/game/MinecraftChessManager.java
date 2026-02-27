@@ -778,10 +778,11 @@ public class MinecraftChessManager {
                     boolean foundAny = false;
                     for (UUID uuid : uuids) {
                         Entity e = world.getEntity(uuid);
-                        if (e != null) {
-                            e.refreshPositionAndAngles(x - (e instanceof DisplayEntity.BlockDisplayEntity ? 0.5 : 0),
-                                    curY + (e instanceof DisplayEntity.TextDisplayEntity ? 2.7 : 0),
-                                    z - (e instanceof DisplayEntity.BlockDisplayEntity ? 0.5 : 0), 0, 0);
+                        if (e instanceof DisplayEntity de) {
+                            de.setTeleportDuration(1);
+                            de.refreshPositionAndAngles(x - (de instanceof DisplayEntity.BlockDisplayEntity ? 0.5 : 0),
+                                    curY + (de instanceof DisplayEntity.TextDisplayEntity ? 2.7 : 0.5),
+                                    z - (de instanceof DisplayEntity.BlockDisplayEntity ? 0.5 : 0), 0, 0);
                             foundAny = true;
                         }
                     }
