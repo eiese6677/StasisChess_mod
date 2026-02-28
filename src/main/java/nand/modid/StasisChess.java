@@ -113,6 +113,26 @@ public class StasisChess implements ModInitializer {
 										}
 										return 1;
 									})))
+					.then(CommandManager.literal("save")
+							.executes(context -> {
+								ServerPlayerEntity player = context.getSource().getPlayer();
+								if (player != null) {
+									MinecraftChessManager.getInstance().saveGame(null, player);
+								}
+								return 1;
+							})
+							.then(CommandManager
+									.argument("name", com.mojang.brigadier.arguments.StringArgumentType.string())
+									.executes(context -> {
+										ServerPlayerEntity player = context.getSource().getPlayer();
+										if (player != null) {
+											String name = com.mojang.brigadier.arguments.StringArgumentType.getString(
+													context,
+													"name");
+											MinecraftChessManager.getInstance().saveGame(name, player);
+										}
+										return 1;
+									})))
 					.then(CommandManager.literal("list")
 							.executes(context -> {
 								ServerPlayerEntity player = context.getSource().getPlayer();

@@ -572,8 +572,8 @@ public class MinecraftChessManager {
 
         String prefix = playerSide == 0 ? "w:" : "b:";
         moveHistory.add(prefix + abbrev(kind) + "+");
-        saveGameLog();
-        saveSnapshot();
+        saveGameLog(null);
+        saveSnapshot(null);
     }
 
     public void removePieceFromPocket(ServerPlayerEntity player, Piece.PieceKind kind) {
@@ -593,8 +593,8 @@ public class MinecraftChessManager {
 
             String prefix = playerSide == 0 ? "w:" : "b:";
             moveHistory.add(prefix + abbrev(kind) + "-");
-            saveGameLog();
-            saveSnapshot();
+            saveGameLog(null);
+            saveSnapshot(null);
         } else {
             player.sendMessage(
                     Text.literal("§c" + kind.name() + " not found in " + (isWhite ? "White" : "Black") + " pocket."),
@@ -631,8 +631,8 @@ public class MinecraftChessManager {
 
                     String prefix = currentPlayer == 0 ? "w:" : "b:";
                     moveHistory.add(prefix + abbrev(kind) + "@" + new Move.Square(boardX, boardY).toNotation());
-                    saveGameLog();
-                    saveSnapshot();
+                    saveGameLog(null);
+                    saveSnapshot(null);
 
                     selectedPocketIndex = -1;
                 } catch (Exception e) {
@@ -724,8 +724,8 @@ public class MinecraftChessManager {
                                 + new Move.Square(selectedSquare[0], selectedSquare[1]).toNotation() + ">"
                                 + toSq.toNotation();
                         moveHistory.add(moveStr);
-                        saveGameLog();
-                        saveSnapshot();
+                        saveGameLog(null);
+                        saveSnapshot(null);
                     }
                     player.sendMessage(Text.literal("§aMoved"), false);
                 } catch (Exception e) {
@@ -931,8 +931,8 @@ public class MinecraftChessManager {
             int currentPlayer = engine.getCurrentPlayer(activeGameId);
             String prefix = currentPlayer == 0 ? "w:" : "b:";
             moveHistory.add(prefix + "END");
-            saveGameLog();
-            saveSnapshot();
+            saveGameLog(null);
+            saveSnapshot(null);
 
             engine.endTurn(activeGameId);
             if (engine.getCurrentPlayer(activeGameId) == 1) {
@@ -1150,17 +1150,29 @@ public class MinecraftChessManager {
     }
 
     /** 플레이어에게 채팅 메시지 전송 헬퍼 */
-    private static void send(ServerPlayerEntity player, String msg) {
+    private void send(ServerPlayerEntity player, String msg) {
         player.sendMessage(Text.literal(msg), false);
     }
 
-    private void saveGameLog() {
+    public void saveGame(String customName, ServerPlayerEntity player) {
+        if (activeGameId == null) {
+            send(player, "§cNo active game to save.");
+            return;
+        }
+        String saveId = (customName == null || customName.isEmpty()) ? activeGameId : customName;
+        saveGameLog(saveId);
+        saveSnapshot(saveId);
+        send(player, "§aGame saved as: " + saveId);
+    }
+
+    private void saveGameLog(String customId) {
         if (activeGameId == null)
             return;
         try {
+            String saveId = (customId == null) ? activeGameId : customId;
             java.nio.file.Path logDir = java.nio.file.Paths.get("mods", "stasischess", "logs");
             java.nio.file.Files.createDirectories(logDir);
-            java.nio.file.Path logFile = logDir.resolve(activeGameId + ".txt");
+            java.nio.file.Path logFile = logDir.resolve(saveId + ".txt");
 
             StringBuilder sb = new StringBuilder();
 
@@ -1198,13 +1210,14 @@ public class MinecraftChessManager {
         }
     }
 
-    private void saveSnapshot() {
+    private void saveSnapshot(String customId) {
         if (activeGameId == null)
             return;
         try {
+            String saveId = (customId == null) ? activeGameId : customId;
             java.nio.file.Path snapshotDir = java.nio.file.Paths.get("mods", "stasischess", "snapshots");
             java.nio.file.Files.createDirectories(snapshotDir);
-            java.nio.file.Path snapshotFile = snapshotDir.resolve(activeGameId + ".txt");
+            java.nio.file.Path snapshotFile = snapshotDir.resolve(saveId + ".txt");
 
             StringBuilder sb = new StringBuilder();
 
@@ -1324,7 +1337,7 @@ public class MinecraftChessManager {
 
             player.sendMessage(Text.literal("§aGame loaded: " + logId), false);
             syncAllPieces(player.getServerWorld());
-            saveSnapshot(); // Initial snapshot after load
+            saveSnapshot(null); // Initial snapshot after load
 
         } catch (Exception e) {
             player.sendMessage(Text.literal("§cLoad failed: " + e.getMessage()), false);
