@@ -61,6 +61,8 @@ public class MinecraftChessManager {
     // 체스판 생성 전의 블록들을 저장
     private final Map<BlockPos, BlockState> savedBlocks = new HashMap<>();
 
+    private final List<String> moveHistory = new ArrayList<>();
+
     private int[] selectedSquare = null;
     private List<Move.LegalMove> currentLegalMoves = new ArrayList<>();
     private int selectedPocketIndex = -1;
@@ -79,6 +81,7 @@ public class MinecraftChessManager {
 
         this.selectedSquare = null;
         this.selectedPocketIndex = -1;
+        this.moveHistory.clear();
 
         player.sendMessage(Text.literal("§aNew Game Started!"), false);
         givePieceItems(player);
@@ -91,6 +94,7 @@ public class MinecraftChessManager {
 
         this.selectedSquare = null;
         this.selectedPocketIndex = -1;
+        this.moveHistory.clear();
 
         player.sendMessage(Text.literal("§d§lExperimental Game Started!"), false);
         givePieceItems(player);
@@ -565,6 +569,11 @@ public class MinecraftChessManager {
         syncPocketDisplays(player.getServerWorld());
         player.sendMessage(Text.literal("§aAdded " + kind.name() + " to " + (isWhite ? "White" : "Black")
                 + " pocket. Current score: " + (currentScore + kind.score())), false);
+
+        String prefix = playerSide == 0 ? "w:" : "b:";
+        moveHistory.add(prefix + abbrev(kind) + "+");
+        saveGameLog();
+        saveSnapshot();
     }
 
     public void removePieceFromPocket(ServerPlayerEntity player, Piece.PieceKind kind) {
@@ -581,6 +590,11 @@ public class MinecraftChessManager {
             player.sendMessage(
                     Text.literal("§eRemoved " + kind.name() + " from " + (isWhite ? "White" : "Black") + " pocket."),
                     false);
+
+            String prefix = playerSide == 0 ? "w:" : "b:";
+            moveHistory.add(prefix + abbrev(kind) + "-");
+            saveGameLog();
+            saveSnapshot();
         } else {
             player.sendMessage(
                     Text.literal("§c" + kind.name() + " not found in " + (isWhite ? "White" : "Black") + " pocket."),
@@ -614,6 +628,12 @@ public class MinecraftChessManager {
                 try {
                     engine.placePiece(activeGameId, kind.name(), boardX, boardY);
                     player.sendMessage(Text.literal("§aPlaced " + kind.name()), false);
+
+                    String prefix = currentPlayer == 0 ? "w:" : "b:";
+                    moveHistory.add(prefix + abbrev(kind) + "@" + new Move.Square(boardX, boardY).toNotation());
+                    saveGameLog();
+                    saveSnapshot();
+
                     selectedPocketIndex = -1;
                 } catch (Exception e) {
                     player.sendMessage(Text.literal("§c" + e.getMessage()), false);
@@ -698,6 +718,14 @@ public class MinecraftChessManager {
                         activeAnimations.put(piece.id, anim);
                         player.sendMessage(Text.literal("§7(Animating piece: " + piece.effectiveKind().name() + ")"),
                                 false);
+
+                        String prefix = piece.owner == 0 ? "w:" : "b:";
+                        String moveStr = prefix + abbrev(piece.effectiveKind())
+                                + new Move.Square(selectedSquare[0], selectedSquare[1]).toNotation() + ">"
+                                + toSq.toNotation();
+                        moveHistory.add(moveStr);
+                        saveGameLog();
+                        saveSnapshot();
                     }
                     player.sendMessage(Text.literal("§aMoved"), false);
                 } catch (Exception e) {
@@ -900,6 +928,12 @@ public class MinecraftChessManager {
         if (activeGameId == null)
             return;
         try {
+            int currentPlayer = engine.getCurrentPlayer(activeGameId);
+            String prefix = currentPlayer == 0 ? "w:" : "b:";
+            moveHistory.add(prefix + "END");
+            saveGameLog();
+            saveSnapshot();
+
             engine.endTurn(activeGameId);
             if (engine.getCurrentPlayer(activeGameId) == 1) {
                 this.paze = true;
@@ -1118,5 +1152,221 @@ public class MinecraftChessManager {
     /** 플레이어에게 채팅 메시지 전송 헬퍼 */
     private static void send(ServerPlayerEntity player, String msg) {
         player.sendMessage(Text.literal(msg), false);
+    }
+
+    private void saveGameLog() {
+        if (activeGameId == null)
+            return;
+        try {
+            java.nio.file.Path logDir = java.nio.file.Paths.get("mods", "stasischess", "logs");
+            java.nio.file.Files.createDirectories(logDir);
+            java.nio.file.Path logFile = logDir.resolve(activeGameId + ".txt");
+
+            StringBuilder sb = new StringBuilder();
+
+            // White Pocket
+            sb.append("w pocket : ");
+            List<Piece.PieceSpec> wPocket = engine.getPocket(activeGameId, 0);
+            for (int i = 0; i < wPocket.size(); i++) {
+                sb.append(wPocket.get(i).kind.name());
+                if (i < wPocket.size() - 1)
+                    sb.append(", ");
+            }
+            sb.append("\n");
+
+            // Black Pocket
+            sb.append("b pocket : ");
+            List<Piece.PieceSpec> bPocket = engine.getPocket(activeGameId, 1);
+            for (int i = 0; i < bPocket.size(); i++) {
+                sb.append(bPocket.get(i).kind.name());
+                if (i < bPocket.size() - 1)
+                    sb.append(", ");
+            }
+            sb.append("\n");
+
+            // Move History
+            for (int i = 0; i < moveHistory.size(); i++) {
+                sb.append(moveHistory.get(i));
+                if (i < moveHistory.size() - 1)
+                    sb.append("->");
+            }
+            sb.append("\n");
+
+            java.nio.file.Files.writeString(logFile, sb.toString());
+        } catch (Exception e) {
+            StasisChess.LOGGER.error("Failed to save chess log: " + e.getMessage());
+        }
+    }
+
+    private void saveSnapshot() {
+        if (activeGameId == null)
+            return;
+        try {
+            java.nio.file.Path snapshotDir = java.nio.file.Paths.get("mods", "stasischess", "snapshots");
+            java.nio.file.Files.createDirectories(snapshotDir);
+            java.nio.file.Path snapshotFile = snapshotDir.resolve(activeGameId + ".txt");
+
+            StringBuilder sb = new StringBuilder();
+
+            GameState state = engine.getGame(activeGameId);
+
+            sb.append("Current Turn: ").append(state.getTurn() == 0 ? "White" : "Black").append("\n\n");
+
+            // Board Visualization (8x8)
+            sb.append("Board (8x8):\n");
+            sb.append("  y\\x  a  b  c  d  e  f  g  h\n");
+            for (int y = 7; y >= 0; y--) {
+                sb.append("  ").append(y + 1).append("  ");
+                for (int x = 0; x < 8; x++) {
+                    Piece.PieceData p = state.getPieceAt(new Move.Square(x, y));
+                    if (p == null) {
+                        sb.append(".  ");
+                    } else {
+                        String abbr = abbrev(p.effectiveKind());
+                        sb.append(p.owner == 0 ? "w" : "b").append(abbr).append(" ");
+                    }
+                }
+                sb.append("\n");
+            }
+            sb.append("\n");
+
+            // Pockets
+            for (int pl = 0; pl < 2; pl++) {
+                List<Piece.PieceSpec> pocket = state.getPocket(pl);
+                sb.append(pl == 0 ? "White Pocket: " : "Black Pocket: ");
+                for (int i = 0; i < pocket.size(); i++) {
+                    sb.append(pocket.get(i).kind.name());
+                    if (i < pocket.size() - 1)
+                        sb.append(", ");
+                }
+                sb.append("\n");
+            }
+
+            java.nio.file.Files.writeString(snapshotFile, sb.toString());
+        } catch (Exception e) {
+            StasisChess.LOGGER.error("Failed to save snapshot: " + e.getMessage());
+        }
+    }
+
+    public void loadGameLog(String logId, ServerPlayerEntity player) {
+        if (boardOrigin == null) {
+            player.sendMessage(Text.literal("§cSet board origin first (start a new game)."), false);
+            return;
+        }
+
+        try {
+            java.nio.file.Path logFile = java.nio.file.Paths.get("mods", "stasischess", "logs", logId + ".txt");
+            if (!java.nio.file.Files.exists(logFile)) {
+                player.sendMessage(Text.literal("§cLog file not found: " + logId), false);
+                return;
+            }
+
+            List<String> lines = java.nio.file.Files.readAllLines(logFile);
+            String historyLine = "";
+            for (String line : lines) {
+                if (!line.startsWith("w pocket") && !line.startsWith("b pocket") && !line.trim().isEmpty()) {
+                    historyLine = line;
+                    break;
+                }
+            }
+
+            if (historyLine.isEmpty()) {
+                player.sendMessage(Text.literal("§cNo history found in log."), false);
+                return;
+            }
+
+            // Reset current engine state
+            this.activeGameId = engine.createGame(); // Fresh game
+            this.moveHistory.clear();
+            this.paze = false;
+            this.selectedSquare = null;
+            this.selectedPocketIndex = -1;
+
+            String[] events = historyLine.split("->");
+            for (String event : events) {
+                if (event.isEmpty())
+                    continue;
+
+                // Format: player:Action
+                int colonIdx = event.indexOf(':');
+                if (colonIdx == -1)
+                    continue;
+
+                String playerSideStr = event.substring(0, colonIdx);
+                String action = event.substring(colonIdx + 1);
+                int side = playerSideStr.equals("w") ? 0 : 1;
+
+                if (action.equals("END")) {
+                    engine.endTurn(activeGameId);
+                } else if (action.endsWith("+")) {
+                    Piece.PieceKind kind = kindFromAbbrev(action.substring(0, action.length() - 1));
+                    engine.addPieceToPocket(activeGameId, side, kind);
+                } else if (action.endsWith("-")) {
+                    Piece.PieceKind kind = kindFromAbbrev(action.substring(0, action.length() - 1));
+                    engine.removePieceFromPocket(activeGameId, side, kind);
+                } else if (action.contains("@")) {
+                    String[] parts = action.split("@");
+                    Piece.PieceKind kind = kindFromAbbrev(parts[0]);
+                    Move.Square to = Move.Square.fromNotation(parts[1]);
+                    engine.placePiece(activeGameId, kind.name(), to.x, to.y);
+                } else if (action.contains(">")) {
+                    String[] parts = action.split(">");
+                    if (parts.length == 2) {
+                        String abbrev = parts[0].substring(0, parts[0].length() - 2);
+                        Move.Square from = Move.Square.fromNotation(parts[0].substring(parts[0].length() - 2));
+                        Move.Square to = Move.Square.fromNotation(parts[1]);
+                        engine.makeMove(activeGameId, from.x, from.y, to.x, to.y);
+                    }
+                }
+                // Re-add to moveHistory so saveGameLog works correctly if we continue
+                moveHistory.add(event);
+            }
+
+            player.sendMessage(Text.literal("§aGame loaded: " + logId), false);
+            syncAllPieces(player.getServerWorld());
+            saveSnapshot(); // Initial snapshot after load
+
+        } catch (Exception e) {
+            player.sendMessage(Text.literal("§cLoad failed: " + e.getMessage()), false);
+            StasisChess.LOGGER.error("Load failed", e);
+        }
+    }
+
+    public void listSavedGames(ServerPlayerEntity player) {
+        try {
+            java.nio.file.Path logDir = java.nio.file.Paths.get("mods", "stasischess", "logs");
+            if (!java.nio.file.Files.exists(logDir)) {
+                player.sendMessage(Text.literal("§eNo saved games found."), false);
+                return;
+            }
+
+            try (java.util.stream.Stream<java.nio.file.Path> stream = java.nio.file.Files.list(logDir)) {
+                List<String> games = stream
+                        .filter(file -> !java.nio.file.Files.isDirectory(file))
+                        .map(file -> file.getFileName().toString())
+                        .filter(name -> name.endsWith(".txt"))
+                        .map(name -> name.substring(0, name.length() - 4))
+                        .collect(java.util.stream.Collectors.toList());
+
+                if (games.isEmpty()) {
+                    player.sendMessage(Text.literal("§eNo saved games found."), false);
+                } else {
+                    player.sendMessage(Text.literal("§6§lSaved Games:"), false);
+                    for (String id : games) {
+                        player.sendMessage(Text.literal("§7- §f" + id), false);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            player.sendMessage(Text.literal("§cFailed to list games: " + e.getMessage()), false);
+        }
+    }
+
+    private Piece.PieceKind kindFromAbbrev(String abbrev) {
+        for (Piece.PieceKind kind : Piece.PieceKind.values()) {
+            if (abbrev(kind).equals(abbrev))
+                return kind;
+        }
+        return Piece.PieceKind.PAWN; // Default
     }
 }
