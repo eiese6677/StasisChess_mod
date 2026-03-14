@@ -17,6 +17,7 @@
 8. [점수 & 스택 참고표](#8-점수--스택-참고표)
 9. [전체 체크리스트](#9-전체-체크리스트)
 10. [예제: "워지르(Wazir)" 기물 추가하기](#10-예제-워지르wazir-기물-추가하기)
+11. [중립기물(Gray Piece) 추가하기](#11-중립기물gray-piece-추가하기)
 
 ---
 
@@ -268,3 +269,97 @@ List<Move.LegalMove> moves = state.getLegalMovesAt(d4);
 - [Core API](01-core-api.md) — 게임 상태 및 기물 API
 - [Chessembly DSL API](03-chessembly-dsl-api.md) — 고급 행마법 문법
 - [Chessembly 튜토리얼](../chessembly/TUTORIAL.md) — DSL 입문
+
+---
+
+## 11. 중립기물(Gray Piece) 추가하기
+
+중립기물은 **백과 흑 양측 모두 사용할 수 있는 특수 기물**입니다.
+중요: **중립 여부는 `PieceKind` 정의 시점에 결정**됩니다. 기존 일반 기물(KNIGHT, QUEEN 등)을 중립으로 사용하는 것이 아니라, 처음부터 중립기물용 새 `PieceKind`를 만들어야 합니다.
+
+### 중립기물의 주요 특성
+
+- 백과 흑 **양측 모두** 자신의 턴에 사용(이동)할 수 있다.
+- **포켓에 넣을 수 없다.** 오직 보드 위에서만 존재한다.
+- 아군/적 판별 시 **사용하는 플레이어의 색을 따른다** (중립기물은 항상 현재 플레이어에게 아군으로 보인다).
+- `take` / `take-move` 등 **캡처 계열 행마로 포획할 수 없다** (항상 아군이므로).
+- 다른 기물이 `shift`로 중립기물 위치를 교환하는 것은 가능하다.
+- **스턴 스택**은 매 반턴(각 플레이어의 턴이 끝날 때)마다 1씩 감소한다.
+- **이동 스택**은 매 반턴마다 `RuleSet.initialMoveStack(score)`로 초기화된다.
+
+### Step A — `PieceKind` enum 등록: 중립 속성 내장
+
+중립기물은 **3-인자 생성자**로 등록합니다. 세 번째 인자가 `isNeutral`을 결정합니다.
+
+```java
+// 형식: (scriptName, score, isNeutral)
+
+NEUTRAL_KNIGHTRIDER("neutral_knightrider", 7, true),
+```
+
+> **왜 PieceKind에 내장하는가?**
+> 중립 여부는 기물의 **본질적 속성**입니다. 런타임 플래그로 기존 기물을 중립화시키는 것은 설계 상 혼란을 줍니다.
+> `NEUTRAL_KNIGHTRIDER`는 항상 중립이고, `KNIGHT`는 항상 일반 기물입니다.
+
+### Step B — Chessembly 행마법 스크립트 작성 (일반 절차와 동일)
+
+행마법은 일반 기물과 동일하게 작성합니다.
+방향 판별(`isWhite`)은 중립기물을 **사용 중인 플레이어**의 색을 기준으로 자동 결정됩니다.
+
+```java
+case NEUTRAL_KNIGHTRIDER:
+    return "take-move(1, 2) repeat(1); take-move(2, 1) repeat(1);"
+         + " take-move(2, -1) repeat(1); take-move(1, -2) repeat(1);"
+         + " take-move(-1, 2) repeat(1); take-move(-2, 1) repeat(1);"
+         + " take-move(-2, -1) repeat(1); take-move(-1, -2) repeat(1);";
+```
+
+### Step C — `fromString()` 파싱 등록 (일반 절차와 동일)
+
+```java
+case "neutral_knightrider": return NEUTRAL_KNIGHTRIDER;
+```
+
+### Step D — 보드에 배치: `placeNeutralPiece(kind, target)`
+
+중립기물은 포켓 경유 없이 **`GameState.placeNeutralPiece()`** 로 보드에 직접 배치합니다.
+모든 중립기물은 `RuleSet.initialMoveStack(score)`에 해당하는 이동 스택을 부여받습니다.
+실제 이동 가능 여부는 Chessembly 스크립트가 결정합니다.
+
+```java
+GameState state = GameState.newDefault();
+
+Move.Square d4 = new Move.Square(3, 3);
+String neutralId = state.placeNeutralPiece(Piece.PieceKind.NEUTRAL_KNIGHTRIDER, d4);
+```
+
+> **주의:** `placePiece()` (포켓 착수 메서드)는 중립기물용이 아닙니다.
+> `placeNeutralPiece()`에 비-중립 `PieceKind`를 전달하면 `IllegalArgumentException`이 발생합니다.
+
+### Step E — 마인크래프트 시각적 블록 지정 (일반 절차와 동일)
+
+중립기물도 `abbrev()` 및 `getPieceItemForKind()` switch에 case를 추가합니다.
+양측이 사용하는 기물이므로 **회색 계열** 블록을 권장합니다.
+
+```java
+// abbrev() (MinecraftChessManager.java)
+case NEUTRAL_KNIGHTRIDER -> "nNr";
+
+// getPieceItemForKind() — 필요한 경우
+case NEUTRAL_KNIGHTRIDER ->
+    Blocks.LIGHT_GRAY_CONCRETE.getDefaultState();
+```
+
+### `PieceKind` 중립 속성 메서드
+
+| 메서드 | 설명 |
+|---|---|
+| `kind.isNeutral()` | `true`이면 중립기물 종류. `placeNeutralPiece()`만 사용 가능. |
+
+### 중립기물 추가 체크리스트
+
+- [ ] **Step A** `PieceKind` enum에 `(scriptName, score, true)` 3-인자 상수 추가
+- [ ] **Step B** `chessemblyScript()` switch에 Chessembly 행마법 case 추가
+- [ ] **Step C** `fromString()` switch에 파싱 case 추가
+- [ ] **Step D** 배치 시 `placeNeutralPiece(kind, target)` 호출
+- [ ] **Step E** `abbrev()` 및 `getPieceItemForKind()` switch에 마인크래프트 케이스 추가 (회색 계열 권장)
